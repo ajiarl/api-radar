@@ -1,6 +1,13 @@
 # API & Webhook Radar
 
-[![Nuxt 4](https://img.shields.io/badge/Nuxt-4.6.2-00DC82?logo=nuxt.js&logoColor=white)](https://nuxt.com)
+![CI Quality Gates](https://github.com/ajiarl/api-radar/actions/workflows/ci.yml/badge.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+![Nuxt 4](https://img.shields.io/badge/Nuxt-4.6.2-00DC82?logo=nuxt.js)
+![Nitro](https://img.shields.io/badge/Nitro-2.13.4-black)
+![Nuxt UI](https://img.shields.io/badge/Nuxt%20UI-v3-00DC82)
+![Vitest](https://img.shields.io/badge/Vitest-v5.0.5-6E9F18?logo=vitest)
+
+> **Developer Diagnostic & Ingress Cockpit** — Realtime endpoint watcher, outbound HTTP probe engine, SSRF-guarded proxy, and multi-channel webhook receiver built with Nuxt 4, Nitro Engine, and Nuxt UI.
 [![Nitro Engine](https://img.shields.io/badge/Nitro-2.13.4-F43F5E?logo=nitro&logoColor=white)](https://nitro.unjs.io)
 [![Nuxt UI](https://img.shields.io/badge/Nuxt_UI-4.12.0-00DC82)](https://ui.nuxt.com)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4.3-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
