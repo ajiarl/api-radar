@@ -11,12 +11,12 @@
 |:---:|---|---|:---:|
 | 1 | Problem statement & MVP scope jelas | `docs/audit/01-perencanaan-dan-analisis.md` | ✅ PASS |
 | 2 | Stack decision didasarkan alasan objektif | Nuxt 4 + Nitro + `@nuxt/ui` (Zero-CORS, unstorage) | ✅ PASS |
-| 3 | Input validation pada semua endpoint | Validasi URL & payload via Zod schema di Nitro handler | ⏳ PENDING (Fase 1) |
-| 4 | Proteksi SSRF pada outbound HTTP probe | `server/utils/ssrf.ts` memblokir IP privat & metadata | ⏳ PENDING (Fase 1) |
-| 5 | Masking credential di storage/logs | Menyensor header `Authorization` & `Cookie` | ⏳ PENDING (Fase 1) |
-| 6 | Timeout guard pada koneksi eksternal | `AbortSignal.timeout(5000)` di semua probe fetch | ⏳ PENDING (Fase 1) |
+| 3 | Input validation pada semua endpoint | Validasi URL & payload via Zod schema di Nitro handler | ✅ PASS |
+| 4 | Proteksi SSRF pada outbound HTTP probe | `server/utils/ssrf.ts` memblokir IP privat & metadata | ✅ PASS |
+| 5 | Masking credential di storage/logs | Menyensor header `Authorization` & `Cookie` | ✅ PASS |
+| 6 | Timeout guard pada koneksi eksternal | `AbortSignal.timeout(5000)` di semua probe fetch | ✅ PASS |
 | 7 | Zero phantom dependencies di package.json | Hanya modul aktif yang diinstal (`@nuxt/ui`, `@vueuse/core`, `zod`) | ✅ PASS |
-| 8 | Error handling aman tanpa expose stack trace | `createError()` terstruktur di Nitro | ⏳ PENDING (Fase 1) |
+| 8 | Error handling aman tanpa expose stack trace | `createError()` terstruktur di Nitro | ✅ PASS |
 | 9 | Mobile responsive layout | Responsive table & grid di `pages/index.vue` | ⏳ PENDING (Fase 2) |
 | 10 | Semantic HTML elements | Menggunakan `<header>`, `<main>`, `<table>`, `<button>` | ⏳ PENDING (Fase 2) |
 | 11 | Keyboard focus states jelas | Focus rings kontras tinggi WCAG AA | ⏳ PENDING (Fase 2) |
@@ -26,7 +26,7 @@
 | 15 | Strict TypeScript check lulus | `npx pnpm run typecheck` 0 errors | ⏳ PENDING (Fase 3) |
 | 16 | Strict Linter check lulus | `npx pnpm run lint` 0 errors | ✅ PASS |
 | 17 | Production build compile sukses | `npx pnpm run build` sukses 100% | ✅ PASS |
-| 18 | Synthetic probe route tersedia | `GET /api/health` merespons 200 OK | ⏳ PENDING (Fase 1) |
+| 18 | Synthetic probe route tersedia | `GET /api/health` merespons 200 OK | ✅ PASS |
 | 19 | Zero broken links & routing bersih | File-based routing standar Nuxt | ⏳ PENDING (Fase 2) |
 | 20 | Git version control bersih | Commit atomic per fase pengerjaan | ✅ PASS |
 

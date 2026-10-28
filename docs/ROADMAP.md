@@ -8,7 +8,7 @@
 
 | Fase | Nama Fase | Fokus Pekerjaan | Status | Target Verifikasi |
 |---|---|---|:---:|---|
-| **Fase 1** | **Nitro Backend & Storage Core** | Server API, SSRF Guard, In-Memory/FS Storage, Webhook Ingress | `PENDING` | Test cURL semua endpoint + build server lolos |
+| **Fase 1** | **Nitro Backend & Storage Core** | Server API, SSRF Guard, In-Memory/FS Storage, Webhook Ingress | `COMPLETED` | Test cURL semua endpoint + build server lolos |
 | **Fase 2** | **Frontend Cockpit Dashboard** | Slicing template Superdesign ke Nuxt UI, Tabel, Modal, Detail | `PENDING` | UI render bersih di browser + interaktif |
 | **Fase 3** | **Hardening & Quality Gate** | 15-Bab Panduan.txt, Typecheck 0 error, Production Build | `PENDING` | `pnpm run typecheck` + `pnpm run build` PASS |
 
