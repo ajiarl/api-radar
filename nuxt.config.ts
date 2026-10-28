@@ -17,6 +17,15 @@ export default defineNuxtConfig({
     storage: 'cookie',
     storageKey: 'nuxt-color-mode'
   },
+  routeRules: {
+    '/**': {
+      headers: {
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'Referrer-Policy': 'strict-origin-when-cross-origin'
+      }
+    }
+  },
 
   compatibilityDate: '2026-06-30',
 
