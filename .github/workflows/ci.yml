@@ -1,34 +1,42 @@
-name: ci
+name: CI
 
-on: push
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
 
 jobs:
-  ci:
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        node: [24]
+  quality-gates:
+    name: Quality Gates
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v6
-
-      - name: Install node
-        uses: actions/setup-node@v7
+        uses: pnpm/action-setup@v4
         with:
-          node-version: ${{ matrix.node }}
-          cache: pnpm
+          version: 12.15.0
+
+      - name: Setup Node.js v22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
-      - name: Lint
+      - name: Test (Vitest)
+        run: pnpm test
+
+      - name: Lint (ESLint)
         run: pnpm run lint
 
-      - name: Typecheck
+      - name: Typecheck (Nuxt)
         run: pnpm run typecheck
+
+      - name: Build (Production)
+        run: pnpm run build
