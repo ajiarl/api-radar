@@ -1,13 +1,21 @@
 <script setup lang="ts">
 useHead({
   meta: [
-    { name: 'viewport', content: 'width=device-width, initial-scale=1' }
+    { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+    { name: 'color-scheme', content: 'light' }
   ],
   link: [
-    { rel: 'icon', href: '/favicon.ico' }
+    { rel: 'icon', href: '/favicon.ico' },
+    { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+    { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
+    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap' }
   ],
   htmlAttrs: {
-    lang: 'id'
+    lang: 'id',
+    class: 'light'
+  },
+  bodyAttrs: {
+    class: 'bg-slate-50 text-slate-900 antialiased'
   }
 })
 
@@ -20,87 +28,82 @@ useSeoMeta({
   ogTitle: title,
   ogDescription: description
 })
+
+if (import.meta.client) {
+  document.documentElement.classList.remove('dark')
+  document.documentElement.classList.add('light')
+  try {
+    if (localStorage.getItem('nuxt-color-mode') === 'dark') {
+      localStorage.setItem('nuxt-color-mode', 'light')
+    }
+  } catch {
+    // Ignore localStorage access issues in restricted environments
+  }
+}
 </script>
 
 <template>
   <UApp>
-    <UHeader>
-      <template #left>
-        <NuxtLink
-          to="/"
-          class="flex items-center gap-2 font-bold text-lg tracking-tight focus-visible:outline-2 outline-primary rounded-md p-1 -ms-1"
-        >
-          <div class="flex items-center justify-center size-8 rounded-lg bg-emerald-500/10 text-emerald-500">
-            <UIcon
-              name="i-lucide-activity"
-              class="size-5"
-            />
+    <div class="min-h-screen bg-slate-50 text-slate-900 flex flex-col antialiased">
+      <!-- Top Simple Navbar (Clean White) -->
+      <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+          <NuxtLink
+            to="/"
+            class="flex items-center gap-2.5 font-bold text-base text-slate-900"
+          >
+            <div class="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-lg font-bold">
+              <UIcon
+                name="i-lucide-activity"
+                class="size-5"
+              />
+            </div>
+            <span class="tracking-tight">API Radar</span>
+          </NuxtLink>
+
+          <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
+            <NuxtLink
+              to="/"
+              class="text-emerald-600 font-semibold"
+            >
+              Endpoints
+            </NuxtLink>
+            <NuxtLink
+              to="/#webhooks"
+              class="hover:text-slate-900 transition"
+            >
+              Webhooks
+            </NuxtLink>
+            <NuxtLink
+              to="/#logs"
+              class="hover:text-slate-900 transition"
+            >
+              History Logs
+            </NuxtLink>
+          </nav>
+
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 text-xs font-medium text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>All systems healthy</span>
+            </div>
           </div>
-          <span class="font-bold text-highlighted">API Radar</span>
-        </NuxtLink>
-      </template>
-
-      <div class="hidden md:flex items-center gap-1">
-        <UButton
-          to="/"
-          variant="ghost"
-          color="neutral"
-          class="font-medium"
-        >
-          Endpoints
-        </UButton>
-        <UButton
-          to="/#webhooks"
-          variant="ghost"
-          color="neutral"
-          class="font-medium text-muted hover:text-highlighted"
-        >
-          Webhooks
-        </UButton>
-        <UButton
-          to="/#logs"
-          variant="ghost"
-          color="neutral"
-          class="font-medium text-muted hover:text-highlighted"
-        >
-          Logs
-        </UButton>
-      </div>
-
-      <template #right>
-        <div class="flex items-center gap-3">
-          <div class="hidden sm:inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-            <span class="relative flex size-2">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span class="relative inline-flex rounded-full size-2 bg-emerald-500" />
-            </span>
-            <span>All systems healthy</span>
-          </div>
-
-          <UColorModeButton />
         </div>
-      </template>
-    </UHeader>
+      </header>
 
-    <UMain>
-      <NuxtPage />
-    </UMain>
+      <main class="flex-1">
+        <NuxtPage />
+      </main>
 
-    <USeparator />
-
-    <UFooter>
-      <template #left>
-        <p class="text-xs text-muted">
-          API &amp; Webhook Radar &mdash; Nuxt 4 &amp; Nitro Engine &mdash; Zero-Cost Self-Hosted
-        </p>
-      </template>
-
-      <template #right>
-        <div class="flex items-center gap-2 text-xs text-muted">
-          <span class="inline-block size-2 rounded-full bg-emerald-500" />
-          <span>Nitro v2.13.4 Engine</span>
+      <!-- Clean Footer -->
+      <footer class="border-t border-slate-200 bg-white py-6 text-xs text-slate-400">
+        <div class="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <p>API &amp; Webhook Radar &middot; Dibangun di atas Nuxt 4 + Tailwind CSS</p>
+          <p class="font-mono">
+            Status: SSR Active &middot; Zero-Cost Self-Hosted
+          </p>
         </div>
-      </template>
-    </UFooter>
+      </footer>
+    </div>
   </UApp>
 </template>

@@ -11,6 +11,13 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  colorMode: {
+    preference: 'light',
+    fallback: 'light',
+    storage: 'cookie',
+    storageKey: 'nuxt-color-mode'
+  },
+
   compatibilityDate: '2026-06-30',
 
   eslint: {

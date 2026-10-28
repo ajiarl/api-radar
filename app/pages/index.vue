@@ -29,13 +29,14 @@ interface RadarTargetItem {
 const toast = useToast()
 const { copy, copied } = useClipboard()
 
-// Anti Double-Fetch initial data load
-const { data: targetsData, refresh: refreshTargets, status: fetchStatus } = await useFetch<{ targets: RadarTargetItem[] }>('/api/radar/targets')
+// Initial data load
+const { data: targetsData, refresh: refreshTargets } = await useFetch<{ targets: RadarTargetItem[] }>('/api/radar/targets')
 
 const targets = ref<RadarTargetItem[]>([])
 const selectedTarget = ref<RadarTargetItem | null>(null)
 const pingingIds = ref<Record<string, boolean>>({})
 const isPingingAll = ref(false)
+const searchQuery = ref('')
 
 // Sinkronisasi data fetch ke state reaktif lokal
 watch(
@@ -61,6 +62,13 @@ watch(
   },
   { immediate: true }
 )
+
+// Filter targets by search
+const filteredTargets = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return targets.value
+  return targets.value.filter(t => t.name.toLowerCase().includes(q) || t.url.toLowerCase().includes(q))
+})
 
 // Summary Metrics Computations
 const totalTargets = computed(() => targets.value.length)
@@ -145,10 +153,10 @@ async function pingAllTargets() {
 // Auto-Refresh Polling via useIntervalFn
 const pollInterval = ref<number>(0)
 const pollOptions = [
-  { label: 'Auto-refresh: Off', value: 0 },
-  { label: 'Auto-refresh: 5s', value: 5000 },
-  { label: 'Auto-refresh: 10s', value: 10000 },
-  { label: 'Auto-refresh: 30s', value: 30000 }
+  { label: 'Auto: Off', value: 0 },
+  { label: 'Auto: 5s', value: 5000 },
+  { label: 'Auto: 10s', value: 10000 },
+  { label: 'Auto: 30s', value: 30000 }
 ]
 
 const { pause, resume } = useIntervalFn(
@@ -292,377 +300,407 @@ async function submitNewTarget() {
     isSubmittingTarget.value = false
   }
 }
-
-// Table Columns Definition
-const columns = [
-  { accessorKey: 'status', header: 'Status' },
-  { accessorKey: 'name', header: 'Nama & URL' },
-  { accessorKey: 'method', header: 'Method' },
-  { accessorKey: 'latency', header: 'Latensi' },
-  { accessorKey: 'lastChecked', header: 'Terakhir Dicek' },
-  { id: 'actions', header: 'Aksi' }
-]
 </script>
 
 <template>
-  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-    <!-- Top Action Bar -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+  <div class="max-w-6xl mx-auto px-6 py-10 space-y-8">
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200">
       <div>
-        <h1 class="text-2xl font-bold tracking-tight text-highlighted">
-          Endpoint Radar
+        <h1 class="text-2xl font-bold text-slate-900 tracking-tight">
+          API Endpoint Monitor
         </h1>
-        <p class="text-sm text-muted mt-1">
-          Pantau latensi dan ketersediaan microservice API dan gateway lokal secara presisi.
+        <p class="text-sm text-slate-500 mt-1">
+          Pantau status, latency, dan ketersediaan service API dan gateway secara real-time.
         </p>
       </div>
 
-      <div class="flex items-center gap-2 flex-wrap">
+      <div class="flex items-center gap-3 flex-wrap">
         <USelect
           v-model="pollInterval"
           :items="pollOptions"
           value-key="value"
           label-key="label"
-          class="w-44 text-xs"
+          class="w-32 text-xs"
         />
 
-        <UButton
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-refresh-cw"
-          :loading="isPingingAll"
+        <button
+          class="px-4 py-2 rounded-lg bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-sm font-semibold flex items-center gap-2 shadow-sm transition disabled:opacity-60"
+          :disabled="isPingingAll"
           @click="pingAllTargets"
         >
-          Ping Semua
-        </UButton>
+          <UIcon
+            name="i-lucide-refresh-cw"
+            class="text-slate-500 text-sm"
+            :class="{ 'animate-spin': isPingingAll }"
+          />
+          <span>{{ isPingingAll ? 'Memeriksa...' : 'Ping Semua' }}</span>
+        </button>
 
-        <UButton
-          color="primary"
-          icon="i-lucide-plus"
+        <button
+          class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold flex items-center gap-2 shadow-sm transition"
           @click="isAddModalOpen = true"
         >
-          Tambah Endpoint
-        </UButton>
+          <UIcon
+            name="i-lucide-plus"
+            class="text-sm"
+          />
+          <span>Tambah Endpoint</span>
+        </button>
       </div>
     </div>
 
-    <!-- Summary Metrics (3 Clean Cards) -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <UCard>
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-semibold text-muted tracking-wider uppercase">Total Target</span>
+    <!-- Overview Cards (Clean White) -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Total Endpoint
+          </p>
+          <h3 class="text-2xl font-bold text-slate-900 mt-1">
+            {{ totalTargets }} Target
+          </h3>
+          <p class="text-xs text-slate-500 mt-1">
+            Dipantau berkala oleh radar
+          </p>
+        </div>
+        <div class="w-12 h-12 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center text-xl">
           <UIcon
             name="i-lucide-server"
-            class="size-5 text-muted"
+            class="size-6"
           />
-        </div>
-        <div class="mt-3 flex items-baseline gap-2">
-          <span class="text-3xl font-extrabold text-highlighted">{{ totalTargets }}</span>
-          <span class="text-xs text-muted">Endpoint</span>
-        </div>
-        <p class="text-xs text-muted mt-1">
-          Dipantau secara berkala oleh radar
-        </p>
-      </UCard>
-
-      <UCard>
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-semibold text-muted tracking-wider uppercase">Rata-rata Latensi</span>
-          <UIcon
-            name="i-lucide-zap"
-            class="size-5 text-emerald-500"
-          />
-        </div>
-        <div class="mt-3 flex items-baseline gap-2">
-          <span class="text-3xl font-extrabold text-emerald-500 font-mono">{{ averageLatency }}</span>
-          <span class="text-xs text-muted font-mono">ms</span>
-        </div>
-        <p class="text-xs text-muted mt-1">
-          Waktu round-trip rata-rata probe
-        </p>
-      </UCard>
-
-      <UCard>
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-semibold text-muted tracking-wider uppercase">Tingkat Uptime</span>
-          <UIcon
-            name="i-lucide-shield-check"
-            class="size-5 text-emerald-500"
-          />
-        </div>
-        <div class="mt-3 flex items-baseline gap-2">
-          <span class="text-3xl font-extrabold text-highlighted">{{ uptimeRate }}%</span>
-          <span class="text-xs text-emerald-500 font-medium">({{ healthyCount }}/{{ totalTargets }} normal)</span>
-        </div>
-        <p class="text-xs text-muted mt-1">
-          Persentase endpoint berstatus 200 OK
-        </p>
-      </UCard>
-    </div>
-
-    <!-- Main Data Table -->
-    <UCard :ui="{ body: 'p-0 sm:p-0' }">
-      <template #header>
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <h2 class="font-semibold text-highlighted">
-              Daftar Target Monitoring
-            </h2>
-            <UBadge
-              color="neutral"
-              variant="subtle"
-              size="sm"
-            >
-              {{ targets.length }} Aktif
-            </UBadge>
-          </div>
-
-          <span
-            v-if="fetchStatus === 'pending'"
-            class="text-xs text-muted flex items-center gap-1.5"
-          >
-            <UIcon
-              name="i-lucide-loader-2"
-              class="animate-spin size-3.5"
-            /> Memuat data...
-          </span>
-        </div>
-      </template>
-
-      <UTable
-        :data="targets"
-        :columns="columns"
-        class="w-full"
-      >
-        <!-- Column Status -->
-        <template #status-cell="{ row }">
-          <div class="flex items-center gap-2">
-            <span
-              v-if="!row.original.lastPing"
-              class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-neutral-500/10 text-neutral-500 border border-neutral-500/20"
-            >
-              <span class="size-1.5 rounded-full bg-neutral-400" />
-              Pending
-            </span>
-            <span
-              v-else-if="row.original.lastPing.status >= 200 && row.original.lastPing.status < 300"
-              class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-            >
-              <span class="size-1.5 rounded-full bg-emerald-500" />
-              {{ row.original.lastPing.status }} OK
-            </span>
-            <span
-              v-else-if="row.original.lastPing.status >= 400 && row.original.lastPing.status < 500"
-              class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20"
-            >
-              <span class="size-1.5 rounded-full bg-amber-500" />
-              {{ row.original.lastPing.status }} Client Error
-            </span>
-            <span
-              v-else
-              class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-500/10 text-rose-500 border border-rose-500/20"
-            >
-              <span class="size-1.5 rounded-full bg-rose-500" />
-              {{ row.original.lastPing.status || 500 }} {{ row.original.lastPing.statusText || 'Error' }}
-            </span>
-          </div>
-        </template>
-
-        <!-- Column Name & URL -->
-        <template #name-cell="{ row }">
-          <div class="space-y-0.5">
-            <div class="flex items-center gap-2">
-              <span class="font-semibold text-highlighted text-sm">{{ row.original.name }}</span>
-              <UBadge
-                v-if="row.original.allowLocal"
-                color="warning"
-                variant="subtle"
-                size="xs"
-              >
-                Local Dev
-              </UBadge>
-            </div>
-            <p class="font-mono text-xs text-muted truncate max-w-xs sm:max-w-md">
-              {{ row.original.url }}
-            </p>
-          </div>
-        </template>
-
-        <!-- Column Method -->
-        <template #method-cell="{ row }">
-          <UBadge
-            :color="row.original.method === 'POST' ? 'primary' : 'neutral'"
-            variant="subtle"
-            size="sm"
-            class="font-mono font-bold"
-          >
-            {{ row.original.method }}
-          </UBadge>
-        </template>
-
-        <!-- Column Latency -->
-        <template #latency-cell="{ row }">
-          <div class="font-mono text-sm">
-            <span
-              v-if="!row.original.lastPing"
-              class="text-muted"
-            >-</span>
-            <span
-              v-else-if="row.original.lastPing.status === 200"
-              class="text-emerald-500 font-bold"
-            >
-              {{ row.original.lastPing.latencyMs }} ms
-            </span>
-            <span
-              v-else
-              class="text-rose-500 font-bold"
-            >
-              {{ row.original.lastPing.latencyMs }} ms
-            </span>
-          </div>
-        </template>
-
-        <!-- Column Last Checked -->
-        <template #lastChecked-cell="{ row }">
-          <span class="text-xs text-muted">
-            {{ formatRelativeTime(row.original.lastPing?.timestamp) }}
-          </span>
-        </template>
-
-        <!-- Column Actions -->
-        <template #actions-cell="{ row }">
-          <div class="flex items-center gap-1.5">
-            <UButton
-              size="xs"
-              color="neutral"
-              variant="subtle"
-              icon="i-lucide-play"
-              :loading="pingingIds[row.original.id]"
-              @click="pingTarget(row.original)"
-            >
-              Ping
-            </UButton>
-
-            <UButton
-              size="xs"
-              color="neutral"
-              :variant="selectedTarget?.id === row.original.id ? 'solid' : 'ghost'"
-              icon="i-lucide-eye"
-              @click="selectedTarget = row.original"
-            >
-              Detail
-            </UButton>
-          </div>
-        </template>
-      </UTable>
-    </UCard>
-
-    <!-- Card Detail / Inspector -->
-    <UCard v-if="selectedTarget">
-      <template #header>
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div class="flex items-center gap-3">
-            <div class="flex items-center justify-center size-9 rounded-lg bg-emerald-500/10 text-emerald-500">
-              <UIcon
-                name="i-lucide-code-2"
-                class="size-5"
-              />
-            </div>
-            <div>
-              <div class="flex items-center gap-2">
-                <h3 class="font-bold text-highlighted">
-                  {{ selectedTarget.name }}
-                </h3>
-                <UBadge
-                  :color="selectedTarget.method === 'POST' ? 'primary' : 'neutral'"
-                  variant="subtle"
-                  size="xs"
-                  class="font-mono"
-                >
-                  {{ selectedTarget.method }}
-                </UBadge>
-              </div>
-              <p class="font-mono text-xs text-muted mt-0.5">
-                {{ selectedTarget.url }}
-              </p>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <UButton
-              size="xs"
-              color="neutral"
-              variant="outline"
-              :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-              @click="handleCopyCurl"
-            >
-              {{ copied ? 'Disalin' : 'Copy cURL' }}
-            </UButton>
-
-            <UButton
-              size="xs"
-              color="primary"
-              icon="i-lucide-play"
-              :loading="pingingIds[selectedTarget.id]"
-              @click="pingTarget(selectedTarget)"
-            >
-              Ping Sekarang
-            </UButton>
-          </div>
-        </div>
-      </template>
-
-      <!-- 4 Stat Pills -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-        <div class="p-3 rounded-lg border border-default bg-elevated/50">
-          <span class="text-xs text-muted block">Status Code</span>
-          <span
-            v-if="!selectedTarget.lastPing"
-            class="text-sm font-semibold text-muted mt-1 block"
-          >Belum Dicek</span>
-          <span
-            v-else-if="selectedTarget.lastPing.status >= 200 && selectedTarget.lastPing.status < 300"
-            class="text-sm font-bold text-emerald-500 mt-1 block"
-          >
-            {{ selectedTarget.lastPing.status }} {{ selectedTarget.lastPing.statusText }}
-          </span>
-          <span
-            v-else
-            class="text-sm font-bold text-rose-500 mt-1 block"
-          >
-            {{ selectedTarget.lastPing.status }} {{ selectedTarget.lastPing.statusText }}
-          </span>
-        </div>
-
-        <div class="p-3 rounded-lg border border-default bg-elevated/50">
-          <span class="text-xs text-muted block">Total Latensi</span>
-          <span class="text-sm font-mono font-bold text-highlighted mt-1 block">
-            {{ selectedTarget.lastPing?.latencyMs !== undefined ? `${selectedTarget.lastPing.latencyMs} ms` : '-' }}
-          </span>
-        </div>
-
-        <div class="p-3 rounded-lg border border-default bg-elevated/50">
-          <span class="text-xs text-muted block">Content-Type</span>
-          <span class="text-sm font-mono text-muted mt-1 block truncate">
-            {{ selectedTarget.lastPing?.contentType || '-' }}
-          </span>
-        </div>
-
-        <div class="p-3 rounded-lg border border-default bg-elevated/50">
-          <span class="text-xs text-muted block">Payload Size</span>
-          <span class="text-sm font-mono text-highlighted mt-1 block">
-            {{ getPayloadSize(selectedTarget.lastPing?.body) }}
-          </span>
         </div>
       </div>
 
-      <!-- JSON Viewer Box -->
-      <div class="space-y-1.5">
-        <div class="flex items-center justify-between text-xs text-muted">
-          <span class="font-medium">Response Body Payload:</span>
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Rata-rata Latensi
+          </p>
+          <h3 class="text-2xl font-bold text-emerald-600 mt-1 font-mono">
+            {{ averageLatency }} ms
+          </h3>
+          <p class="text-xs text-emerald-600 mt-1 flex items-center gap-1 font-medium">
+            <UIcon
+              name="i-lucide-zap"
+              class="text-xs"
+            /> Waktu round-trip rata-rata
+          </p>
+        </div>
+        <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl">
+          <UIcon
+            name="i-lucide-zap"
+            class="size-6 text-emerald-600"
+          />
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Tingkat Uptime
+          </p>
+          <h3 class="text-2xl font-bold text-slate-900 mt-1">
+            {{ uptimeRate }}%
+          </h3>
+          <p class="text-xs text-slate-500 mt-1">
+            {{ healthyCount }}/{{ totalTargets }} endpoint normal
+          </p>
+        </div>
+        <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl">
+          <UIcon
+            name="i-lucide-check-circle-2"
+            class="size-6 text-blue-600"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Endpoint List Table (Clean White Card) -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-2">
+          <h2 class="font-bold text-base text-slate-900">
+            Daftar Endpoint
+          </h2>
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+            {{ targets.length }} Aktif
+          </span>
+        </div>
+
+        <div class="relative w-64">
+          <UIcon
+            name="i-lucide-search"
+            class="absolute left-3 top-2.5 text-slate-400 text-sm"
+          />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Cari endpoint atau URL..."
+            class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
+          >
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
+            <tr>
+              <th class="py-3 px-6">
+                Status
+              </th>
+              <th class="py-3 px-6">
+                Nama &amp; URL
+              </th>
+              <th class="py-3 px-6">
+                Method
+              </th>
+              <th class="py-3 px-6">
+                Latensi
+              </th>
+              <th class="py-3 px-6">
+                Terakhir Dicek
+              </th>
+              <th class="py-3 px-6 text-right">
+                Aksi
+              </th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 text-slate-700">
+            <tr
+              v-for="target in filteredTargets"
+              :key="target.id"
+              class="hover:bg-slate-50/80 transition"
+              :class="{ 'bg-emerald-50/30': selectedTarget?.id === target.id }"
+            >
+              <!-- Status Badge -->
+              <td class="py-4 px-6 whitespace-nowrap">
+                <span
+                  v-if="!target.lastPing"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                  Pending
+                </span>
+                <span
+                  v-else-if="target.lastPing.status >= 200 && target.lastPing.status < 300"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  {{ target.lastPing.status }} OK
+                </span>
+                <span
+                  v-else-if="target.lastPing.status >= 400 && target.lastPing.status < 500"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  {{ target.lastPing.status }} Client Error
+                </span>
+                <span
+                  v-else
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                  {{ target.lastPing.status }} {{ target.lastPing.statusText || 'Error' }}
+                </span>
+              </td>
+
+              <!-- Nama & URL -->
+              <td class="py-4 px-6">
+                <div class="flex items-center gap-2">
+                  <span class="font-semibold text-slate-900">{{ target.name }}</span>
+                  <span
+                    v-if="target.allowLocal"
+                    class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200"
+                  >
+                    Local Dev
+                  </span>
+                </div>
+                <div class="font-mono text-xs text-slate-500 mt-0.5 truncate max-w-xs sm:max-w-md">
+                  {{ target.url }}
+                </div>
+              </td>
+
+              <!-- Method -->
+              <td class="py-4 px-6 whitespace-nowrap">
+                <span
+                  class="px-2 py-0.5 rounded text-xs font-mono font-bold border"
+                  :class="target.method === 'POST' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-slate-100 text-slate-700 border-slate-200'"
+                >
+                  {{ target.method }}
+                </span>
+              </td>
+
+              <!-- Latensi -->
+              <td class="py-4 px-6 font-mono font-semibold whitespace-nowrap">
+                <span
+                  v-if="!target.lastPing"
+                  class="text-slate-400"
+                >-</span>
+                <span
+                  v-else-if="target.lastPing.status === 200"
+                  class="text-emerald-600"
+                >
+                  {{ target.lastPing.latencyMs }} ms
+                </span>
+                <span
+                  v-else
+                  class="text-rose-600"
+                >
+                  {{ target.lastPing.latencyMs }} ms
+                </span>
+              </td>
+
+              <!-- Terakhir Dicek -->
+              <td class="py-4 px-6 text-xs text-slate-500 whitespace-nowrap">
+                {{ formatRelativeTime(target.lastPing?.timestamp) }}
+              </td>
+
+              <!-- Aksi -->
+              <td class="py-4 px-6 text-right whitespace-nowrap">
+                <div class="inline-flex items-center gap-2">
+                  <button
+                    class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition flex items-center gap-1.5 disabled:opacity-50"
+                    :disabled="pingingIds[target.id]"
+                    @click="pingTarget(target)"
+                  >
+                    <UIcon
+                      name="i-lucide-play"
+                      class="text-xs"
+                      :class="{ 'animate-spin': pingingIds[target.id] }"
+                    />
+                    <span>{{ pingingIds[target.id] ? 'Probing...' : 'Ping' }}</span>
+                  </button>
+
+                  <button
+                    class="px-3 py-1.5 rounded-lg transition text-xs font-medium"
+                    :class="selectedTarget?.id === target.id ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'"
+                    @click="selectedTarget = target"
+                  >
+                    Detail
+                  </button>
+                </div>
+              </td>
+            </tr>
+
+            <tr v-if="filteredTargets.length === 0">
+              <td
+                colspan="6"
+                class="py-8 text-center text-xs text-slate-400"
+              >
+                Tidak ada endpoint yang cocok dengan pencarian "{{ searchQuery }}".
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Detail Modal Preview / Inspector (Clean White Card) -->
+    <div
+      v-if="selectedTarget"
+      class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4"
+    >
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+        <div>
+          <h3 class="font-bold text-base text-slate-900">
+            Detail Response: {{ selectedTarget.name }}
+          </h3>
+          <p class="text-xs text-slate-500 font-mono mt-0.5">
+            Target: {{ selectedTarget.url }} (Status: {{ selectedTarget.lastPing ? `${selectedTarget.lastPing.status} ${selectedTarget.lastPing.statusText}` : 'Belum dicek' }})
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button
+            class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-mono text-slate-700 flex items-center gap-1.5 border border-slate-200 transition"
+            @click="handleCopyCurl"
+          >
+            <UIcon
+              :name="copied ? 'i-lucide-check' : 'i-lucide-copy'"
+              class="text-xs"
+            />
+            <span>{{ copied ? 'Disalin' : 'Copy cURL' }}</span>
+          </button>
+
+          <button
+            class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
+            :disabled="pingingIds[selectedTarget.id]"
+            @click="pingTarget(selectedTarget)"
+          >
+            <UIcon
+              name="i-lucide-play"
+              class="text-xs"
+              :class="{ 'animate-spin': pingingIds[selectedTarget.id] }"
+            />
+            <span>Ping Sekarang</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 4 Stat Pills -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
+          <p class="text-xs text-slate-400 font-medium">
+            Status Code
+          </p>
+          <p
+            v-if="!selectedTarget.lastPing"
+            class="text-lg font-bold text-slate-400 font-mono mt-1"
+          >
+            -
+          </p>
+          <p
+            v-else-if="selectedTarget.lastPing.status >= 200 && selectedTarget.lastPing.status < 300"
+            class="text-lg font-bold text-emerald-600 font-mono mt-1"
+          >
+            {{ selectedTarget.lastPing.status }} OK
+          </p>
+          <p
+            v-else
+            class="text-lg font-bold text-rose-600 font-mono mt-1"
+          >
+            {{ selectedTarget.lastPing.status }} {{ selectedTarget.lastPing.statusText }}
+          </p>
+        </div>
+
+        <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
+          <p class="text-xs text-slate-400 font-medium">
+            Total Latensi
+          </p>
+          <p class="text-lg font-bold text-slate-900 font-mono mt-1">
+            {{ selectedTarget.lastPing?.latencyMs !== undefined ? `${selectedTarget.lastPing.latencyMs} ms` : '-' }}
+          </p>
+        </div>
+
+        <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
+          <p class="text-xs text-slate-400 font-medium">
+            Content Type
+          </p>
+          <p class="text-xs font-semibold text-slate-700 font-mono mt-2 truncate">
+            {{ selectedTarget.lastPing?.contentType || '-' }}
+          </p>
+        </div>
+
+        <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
+          <p class="text-xs text-slate-400 font-medium">
+            Ukuran Payload
+          </p>
+          <p class="text-xs font-semibold text-slate-700 font-mono mt-2">
+            {{ getPayloadSize(selectedTarget.lastPing?.body) }}
+          </p>
+        </div>
+      </div>
+
+      <!-- JSON Viewer Box (Clean Light Card) -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold text-slate-700">
+            Response JSON Body:
+          </p>
           <span
             v-if="selectedTarget.lastPing?.timestamp"
-            class="font-mono text-xs"
+            class="text-[11px] font-mono text-slate-400"
           >
             {{ selectedTarget.lastPing.timestamp }}
           </span>
@@ -670,16 +708,16 @@ const columns = [
 
         <div
           v-if="selectedTarget.lastPing?.error"
-          class="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-mono"
+          class="p-3.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-mono"
         >
           [Error]: {{ selectedTarget.lastPing.error }}
         </div>
 
-        <pre
-          class="p-4 rounded-lg bg-slate-900 text-emerald-400 font-mono text-xs overflow-auto max-h-80 border border-slate-800 leading-relaxed"
-        ><code>{{ formatJson(selectedTarget.lastPing?.body) }}</code></pre>
+        <div class="bg-slate-50 rounded-lg p-4 font-mono text-xs text-slate-800 overflow-x-auto max-h-56 leading-relaxed border border-slate-200">
+          <pre class="font-mono"><code>{{ formatJson(selectedTarget.lastPing?.body) }}</code></pre>
+        </div>
       </div>
-    </UCard>
+    </div>
 
     <!-- Modal Tambah Endpoint Baru -->
     <UModal
@@ -694,7 +732,7 @@ const columns = [
         >
           <div
             v-if="formError"
-            class="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-medium"
+            class="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium"
           >
             {{ formError }}
           </div>
@@ -748,21 +786,20 @@ const columns = [
 
       <template #footer>
         <div class="flex items-center justify-end gap-2 w-full">
-          <UButton
-            color="neutral"
-            variant="ghost"
+          <button
+            class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
             @click="isAddModalOpen = false"
           >
             Batal
-          </UButton>
+          </button>
 
-          <UButton
-            color="primary"
-            :loading="isSubmittingTarget"
+          <button
+            class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition disabled:opacity-50"
+            :disabled="isSubmittingTarget"
             @click="submitNewTarget"
           >
-            Simpan Endpoint
-          </UButton>
+            {{ isSubmittingTarget ? 'Menyimpan...' : 'Simpan Endpoint' }}
+          </button>
         </div>
       </template>
     </UModal>
