@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { fetch as undiciFetch, type RequestInit } from 'undici'
-import { createSsrfDispatcher, validateTargetUrlWithDNS } from '../../utils/ssrf'
+import { createSsrfDispatcher } from '../../utils/ssrf/dispatcher'
+import { validateTargetUrlWithDNS } from '../../utils/ssrf/ipClassifier'
 import { checkRateLimit } from '../../utils/rateLimit'
 
 const PingSchema = z.object({
