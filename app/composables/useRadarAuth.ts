@@ -1,20 +1,8 @@
-import { computed, onMounted } from 'vue'
-
 export function useRadarAuth() {
-  const radarApiKey = useCookie<string>('radarApiKey', {
-    default: () => (import.meta.dev ? 'radar-dev-token' : '')
-  })
-
-  onMounted(() => {
-    if (import.meta.client) {
-      const stored = localStorage.getItem('radarApiKey')
-      if (stored !== null && stored !== '') {
-        radarApiKey.value = stored
-      } else if (import.meta.dev && !radarApiKey.value) {
-        radarApiKey.value = 'radar-dev-token'
-        localStorage.setItem('radarApiKey', 'radar-dev-token')
-      }
-    }
+  const radarApiKey = useCookie<string>('radar_token', {
+    default: () => (import.meta.dev ? 'radar-dev-token' : ''),
+    sameSite: 'strict',
+    secure: import.meta.server ? process.env.NODE_ENV === 'production' : location.protocol === 'https:'
   })
 
   const authHeaders = computed<Record<string, string>>(() => {
@@ -27,9 +15,6 @@ export function useRadarAuth() {
 
   function setApiKey(val: string) {
     radarApiKey.value = val
-    if (import.meta.client) {
-      localStorage.setItem('radarApiKey', val)
-    }
   }
 
   return {

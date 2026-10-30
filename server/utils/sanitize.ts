@@ -10,6 +10,9 @@ export function sanitizePayload(data: unknown, maxDepth = 5): unknown {
   }
 
   if (maxDepth <= 0) {
+    if (data !== null && typeof data === 'object') {
+      return '[TRUNCATED_MAX_DEPTH]'
+    }
     return data
   }
 

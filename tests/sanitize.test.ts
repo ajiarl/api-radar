@@ -84,18 +84,18 @@ describe('sanitizePayload', () => {
     expect(output[1].name).toBe('device-2')
   })
 
-  it('halts recursion when maxDepth is reached', () => {
-    const deepObj = {
-      a: {
-        b: {
-          c: {
-            token: 'will-not-mask'
-          }
-        }
-      }
-    }
-    // maxDepth = 2 stops recursing before reaching token at level 3
-    const output = sanitizePayload(deepObj, 2) as typeof deepObj
-    expect(output.a.b).toEqual({ c: { token: 'will-not-mask' } })
+  it('returns [TRUNCATED_MAX_DEPTH] sentinel for objects at max depth boundary', () => {
+    const deepObj = { a: { b: { c: { token: 'will-not-mask' } } } }
+    // maxDepth=2: root 'a' is depth-1, 'b' is depth-2. When recursing into 'b's
+    // value { c: {...} } the counter becomes 0, so fail-closed sentinel fires.
+    const output = sanitizePayload(deepObj, 2) as Record<string, unknown>
+    expect(output.a).toEqual({ b: '[TRUNCATED_MAX_DEPTH]' })
+  })
+
+  it('returns primitive unchanged at max depth', () => {
+    const obj = { a: 'safe-string' }
+    const output = sanitizePayload(obj, 1) as Record<string, unknown>
+    expect(output.a).toBe('safe-string')
+    expect(sanitizePayload('safe-string', 0)).toBe('safe-string')
   })
 })

@@ -40,10 +40,11 @@ async function readStreamPayload(event: H3Event): Promise<unknown> {
       if (totalBytes > MAX_WEBHOOK_BODY_BYTES) {
         finished = true
         cleanup()
-        if (typeof req.destroy === 'function') req.destroy()
+        // Drain remaining stream passively so TCP stack can deliver HTTP 413 response envelope.
+        if (req.readable) req.resume()
         reject(createError({
           statusCode: 413,
-          statusMessage: 'Payload terlalu besar. Maksimum 100KB.'
+          statusMessage: 'Payload Too Large: Webhook body exceeds 100KB limit.'
         }))
         return
       }
@@ -92,7 +93,7 @@ async function readStreamPayload(event: H3Event): Promise<unknown> {
     if (bodySize > MAX_WEBHOOK_BODY_BYTES) {
       throw createError({
         statusCode: 413,
-        statusMessage: 'Payload terlalu besar. Maksimum 100KB.'
+        statusMessage: 'Payload Too Large: Webhook body exceeds 100KB limit.'
       })
     }
   }
@@ -128,7 +129,7 @@ export default defineEventHandler(async (event) => {
     if (!Number.isNaN(len) && len > MAX_WEBHOOK_BODY_BYTES) {
       throw createError({
         statusCode: 413,
-        statusMessage: 'Payload terlalu besar. Maksimum 100KB.'
+        statusMessage: 'Payload Too Large: Webhook body exceeds 100KB limit.'
       })
     }
   }

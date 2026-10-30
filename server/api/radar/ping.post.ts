@@ -36,6 +36,42 @@ function truncateBody(data: unknown): unknown {
     return String(data).slice(0, MAX_BODY_BYTES)
   }
 }
+const textDecoder = new TextDecoder()
+
+async function readCappedBody(res: { body?: unknown, text: () => Promise<string> }): Promise<string> {
+  if (!res.body) return ''
+  try {
+    const stream = res.body as ReadableStream<Uint8Array>
+    if (typeof stream.getReader !== 'function') {
+      return await res.text().catch(() => '')
+    }
+    const reader = stream.getReader()
+    const chunks: Uint8Array[] = []
+    let totalBytes = 0
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value) {
+        totalBytes += value.byteLength
+        if (totalBytes > MAX_BODY_BYTES) {
+          chunks.push(value.slice(0, value.byteLength - (totalBytes - MAX_BODY_BYTES)))
+          await reader.cancel()
+          break
+        }
+        chunks.push(value)
+      }
+    }
+    const merged = new Uint8Array(chunks.reduce((acc, c) => acc + c.byteLength, 0))
+    let offset = 0
+    for (const c of chunks) {
+      merged.set(c, offset)
+      offset += c.byteLength
+    }
+    return textDecoder.decode(merged)
+  } catch {
+    return await res.text().catch(() => '')
+  }
+}
 
 export default defineEventHandler(async (event) => {
   validateAdminAuth(event)
@@ -115,7 +151,7 @@ export default defineEventHandler(async (event) => {
     }
 
     contentType = res.headers?.get?.('content-type') || responseHeaders['content-type'] || ''
-    const rawText = await res.text().catch(() => '')
+    const rawText = await readCappedBody(res).catch(() => '')
 
     if (method === 'HEAD' || res.status === 204 || rawText === '') {
       responseBody = null
