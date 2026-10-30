@@ -9,7 +9,12 @@ Role: Fullstack Developer Tool untuk monitoring latency endpoint dan ingress web
 Setiap task wajib mematuhi standar hardening 15 Bab (`docs/audit/` framework):
 1. **Perencanaan & Scope**: Ikuti `PRD.md` dan `DESIGN.md`. Pantang menambah dependensi raksasa tanpa izin.
 2. **UI/UX & Aksesibilitas**: Desain cockpit high-density, contrast ratio lolos WCAG 2.2 AA, focus ring jelas, zero blocking `alert()`.
-3. **Arsitektur Nitro**:
+3. **Arsitektur Nitro & Modularitas Komponen**:
+   - **Anti God-File / Component Modularity (Strict):**
+     * DILARANG membuat page monolitik raksasa (> 300 baris kode).
+     * File `app/pages/*.vue` WAJIB bertindak murni sebagai **Page Orchestrator** (< 250 baris): hanya mengelola state reaktif utama, `useFetch`, `useIntervalFn`, dan koordinasi event.
+     * Setiap sub-domain UI (Tabel, Modal Form, Slideover Drawer, Metrics Card, JSON Inspector) WAJIB diekstrak ke dalam subkomponen terisolasi di bawah direktori `app/components/<domain>/`.
+     * Shared interfaces, tipe TypeScript, dan skema validasi Zod diletakkan terpisah di `types.ts`, bukan ditumpuk di dalam file `.vue`.
    - Backend routes di `server/api/`. Gunakan `defineEventHandler`, `readBody`, `getQuery`, dan `createError`.
    - Gunakan Nitro Storage (`useStorage('radar')` / `useStorage('webhook')`).
    - Anti Double-Fetch: `useFetch()` / `useAsyncData()` untuk initial load, `$fetch()` untuk actions/events.
@@ -24,6 +29,7 @@ Setiap task wajib mematuhi standar hardening 15 Bab (`docs/audit/` framework):
 
 ## Definition of Done (DoD) per Task:
 - [ ] Code terstruktur rapi di `server/api/` dan `app/pages/`, `app/components/`
+- [ ] **Anti God-File Verified:** Tidak ada file `.vue` atau `.ts` yang melebihi 300 baris kode
 - [ ] `npx nuxi typecheck` exits with code 0 (0 error)
 - [ ] `npx nuxi build` exits cleanly (production ready)
 - [ ] Tidak ada data dummy halusinasi yang merusak sistem
