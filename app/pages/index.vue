@@ -126,6 +126,45 @@ async function submitNewTarget(formData: TargetFormData) {
     isSubmittingTarget.value = false
   }
 }
+
+const confirmDeleteTarget = ref<RadarTargetItem | null>(null)
+const isDeletingTarget = ref(false)
+
+function requestDeleteTarget(target: RadarTargetItem) {
+  confirmDeleteTarget.value = target
+}
+
+async function confirmDelete() {
+  if (!confirmDeleteTarget.value) return
+  const target = confirmDeleteTarget.value
+  isDeletingTarget.value = true
+  try {
+    await $fetch(`/api/radar/targets/${target.id}`, { method: 'DELETE' })
+    if (selectedTarget.value?.id === target.id) selectedTarget.value = null
+    confirmDeleteTarget.value = null
+    await refreshTargets()
+    toast.add({
+      title: 'Target Dihapus',
+      description: `Endpoint "${target.name}" berhasil dihapus dari radar.`,
+      color: 'success',
+      icon: 'i-lucide-trash-2'
+    })
+  } catch (err: unknown) {
+    const e = err as { data?: { statusMessage?: string }, message?: string }
+    toast.add({
+      title: 'Gagal Menghapus',
+      description: e.data?.statusMessage || e.message || 'Terjadi kesalahan',
+      color: 'error',
+      icon: 'i-lucide-alert-circle'
+    })
+  } finally {
+    isDeletingTarget.value = false
+  }
+}
+
+function handleCloseDeleteModal(open: boolean) {
+  if (!open) confirmDeleteTarget.value = null
+}
 </script>
 
 <template>
@@ -189,6 +228,7 @@ async function submitNewTarget(formData: TargetFormData) {
       @update:search-query="searchQuery = $event"
       @ping="pingTarget"
       @select="selectedTarget = $event"
+      @delete="requestDeleteTarget"
     />
 
     <RadarResponseDetail
@@ -215,5 +255,30 @@ async function submitNewTarget(formData: TargetFormData) {
       :form-error="formError"
       @submit="submitNewTarget"
     />
+
+    <UModal
+      :open="!!confirmDeleteTarget"
+      title="Hapus Target?"
+      :description="confirmDeleteTarget ? `Endpoint '${confirmDeleteTarget.name}' akan dihapus permanen dari radar.` : ''"
+      @update:open="handleCloseDeleteModal"
+    >
+      <template #footer>
+        <div class="flex items-center justify-end gap-2 w-full">
+          <button
+            class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+            @click="confirmDeleteTarget = null"
+          >
+            Batal
+          </button>
+          <button
+            class="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition disabled:opacity-50"
+            :disabled="isDeletingTarget"
+            @click="confirmDelete"
+          >
+            {{ isDeletingTarget ? 'Menghapus...' : 'Ya, Hapus' }}
+          </button>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
