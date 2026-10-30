@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import type { LastPingResult } from './types'
+import { useRadarAuth } from '~/composables/useRadarAuth'
 
 const props = defineProps<{
   open: boolean
@@ -14,7 +15,7 @@ const emit = defineEmits<{
 
 const historyItems = ref<LastPingResult[]>([])
 const isLoading = ref(false)
-
+const { authHeaders } = useRadarAuth()
 function formatRelativeTime(isoString?: string): string {
   if (!isoString) return 'Belum dicek'
   const diffMs = Date.now() - new Date(isoString).getTime()
@@ -51,7 +52,9 @@ async function fetchHistory() {
   if (!props.targetId) return
   isLoading.value = true
   try {
-    const res = await $fetch<{ id: string, history: LastPingResult[] }>('/api/radar/history/' + props.targetId)
+    const res = await $fetch<{ id: string, history: LastPingResult[] }>('/api/radar/history/' + props.targetId, {
+      headers: authHeaders.value
+    })
     historyItems.value = res.history || []
   } catch {
     historyItems.value = []
@@ -75,7 +78,7 @@ watch(
 <template>
   <USlideover
     :open="open"
-    :title="`Ping History — ${targetName}`"
+    :title="`Ping History - ${targetName}`"
     @update:open="emit('update:open', $event)"
   >
     <template #default>
@@ -116,7 +119,7 @@ watch(
             <span class="font-mono text-xs text-slate-400">{{ item.latencyMs }} ms</span>
           </div>
           <div class="text-[11px] text-slate-400 font-mono">
-            {{ formatRelativeTime(item.timestamp) }} — {{ new Date(item.timestamp).toLocaleString() }}
+            {{ formatRelativeTime(item.timestamp) }} - {{ new Date(item.timestamp).toLocaleString() }}
           </div>
           <div
             v-if="item.error"

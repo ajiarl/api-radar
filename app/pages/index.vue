@@ -11,11 +11,12 @@ import {
   pollOptions,
   calculateTargetMetrics
 } from '~/components/radar/types'
+import { useRadarAuth } from '~/composables/useRadarAuth'
 
 const toast = useToast()
 const { copy, copied } = useClipboard()
-
-const { data: targetsData, refresh: refreshTargets } = await useFetch<{ targets: RadarTargetItem[] }>('/api/radar/targets')
+const { authHeaders } = useRadarAuth()
+const { data: targetsData, refresh: refreshTargets } = await useFetch<{ targets: RadarTargetItem[] }>('/api/radar/targets', { headers: authHeaders })
 const targets = ref<RadarTargetItem[]>([])
 const selectedTarget = ref<RadarTargetItem | null>(null)
 const pingingIds = ref<Record<string, boolean>>({})
@@ -28,10 +29,7 @@ const confirmDeleteTarget = ref<RadarTargetItem | null>(null)
 const isHistoryOpen = ref(false)
 const historyTarget = ref<RadarTargetItem | null>(null)
 
-const radarApiKey = import.meta.client ? (localStorage.getItem('radarApiKey') ?? '') : ''
-const { data: webhookLogsData, refresh: refreshWebhookLogs, status: webhookFetchStatus } = await useFetch<{ logs: WebhookLogItem[] }>('/api/webhook/logs', {
-  headers: radarApiKey ? { 'x-radar-key': radarApiKey } : {}
-})
+const { data: webhookLogsData, refresh: refreshWebhookLogs, status: webhookFetchStatus } = await useFetch<{ logs: WebhookLogItem[] }>('/api/webhook/logs', { headers: authHeaders })
 const webhookLogs = computed(() => webhookLogsData.value?.logs || [])
 const selectedWebhook = ref<WebhookLogItem | null>(null)
 const webhookSearch = ref('')
@@ -59,6 +57,7 @@ async function pingTarget(target: RadarTargetItem) {
   try {
     target.lastPing = await $fetch<LastPingResult>('/api/radar/ping', {
       method: 'POST',
+      headers: authHeaders.value,
       body: { id: target.id, url: target.url, method: target.method, allowLocal: target.allowLocal, headers: target.headers }
     })
   } catch (err: unknown) {
@@ -101,7 +100,7 @@ async function submitNewTarget(formData: TargetFormData) {
   }
   isSubmittingTarget.value = true
   try {
-    await $fetch('/api/radar/targets', { method: 'POST', body: val.data })
+    await $fetch('/api/radar/targets', { method: 'POST', headers: authHeaders.value, body: val.data })
     await refreshTargets()
     isAddModalOpen.value = false
     toast.add({ title: 'Target Terdaftar', description: `Endpoint "${val.data.name}" berhasil ditambahkan ke radar.`, color: 'success', icon: 'i-lucide-check' })

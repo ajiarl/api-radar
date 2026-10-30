@@ -1,4 +1,7 @@
-export default defineEventHandler(async () => {
+import { validateAdminAuth } from '../../utils/auth'
+
+export default defineEventHandler(async (event) => {
+  validateAdminAuth(event)
   const storage = useStorage('radar')
   let targets = await storage.getItem<RadarTarget[]>('config:targets')
 

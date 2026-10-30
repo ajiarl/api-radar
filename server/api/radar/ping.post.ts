@@ -3,6 +3,7 @@ import { fetch as undiciFetch, type RequestInit } from 'undici'
 import { createSsrfDispatcher } from '../../utils/ssrf/dispatcher'
 import { validateTargetUrlWithDNS } from '../../utils/ssrf/ipClassifier'
 import { checkRateLimit } from '../../utils/rateLimit'
+import { validateAdminAuth } from '../../utils/auth'
 
 const PingSchema = z.object({
   id: z.string().optional(),
@@ -37,6 +38,7 @@ function truncateBody(data: unknown): unknown {
 }
 
 export default defineEventHandler(async (event) => {
+  validateAdminAuth(event)
   const rawBody = await readBody(event).catch(() => ({}))
 
   const parseResult = PingSchema.safeParse(rawBody)

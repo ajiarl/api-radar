@@ -63,9 +63,10 @@ beforeEach(() => {
   mocks.webhookStorage.getItem.mockResolvedValue(null)
   mocks.webhookStorage.getKeys.mockResolvedValue([])
   delete process.env.RADAR_API_KEY
+  delete process.env.RADAR_ADMIN_TOKEN
 })
 
-describe('webhook ingress — channelId validation', () => {
+describe('webhook ingress - channelId validation', () => {
   it('accepts valid alphanumeric channelId', async () => {
     globalScope.getRouterParam.mockReturnValue('valid-chan')
     globalScope.readBody.mockResolvedValue(null)
@@ -91,7 +92,7 @@ describe('webhook ingress — channelId validation', () => {
   })
 })
 
-describe('webhook ingress — payload size', () => {
+describe('webhook ingress - payload size', () => {
   it('accepts body exactly at 100KB limit', async () => {
     globalScope.readBody.mockResolvedValue('x'.repeat(102400))
     globalScope.getRouterParam.mockReturnValue('chan')
@@ -116,7 +117,7 @@ describe('webhook ingress — payload size', () => {
   })
 })
 
-describe('webhook ingress — header masking', () => {
+describe('webhook ingress - header masking', () => {
   it('masks Authorization header', async () => {
     globalScope.getRequestHeaders.mockReturnValue({
       'authorization': 'Bearer token123',
@@ -166,19 +167,26 @@ describe('webhook ingress — header masking', () => {
   })
 })
 
-describe('webhook logs — auth guard', () => {
-  it('returns 401 when RADAR_API_KEY set and header absent', async () => {
-    process.env.RADAR_API_KEY = 'secret-key'
+describe('webhook logs - auth guard', () => {
+  it('returns 401 when unauthenticated even if RADAR_API_KEY is not set', async () => {
+    delete process.env.RADAR_API_KEY
+    delete process.env.RADAR_ADMIN_TOKEN
     globalScope.getRequestHeader.mockReturnValue(undefined)
 
-    await expect(invokeLogs()).rejects.toMatchObject({ statusCode: 401 })
+    await expect(invokeLogs()).rejects.toMatchObject({
+      statusCode: 401,
+      statusMessage: 'Unauthorized: Invalid or missing administrative token'
+    })
   })
 
   it('returns 401 when RADAR_API_KEY set and wrong key provided', async () => {
     process.env.RADAR_API_KEY = 'secret-key'
     globalScope.getRequestHeader.mockReturnValue('wrong-key')
 
-    await expect(invokeLogs()).rejects.toMatchObject({ statusCode: 401 })
+    await expect(invokeLogs()).rejects.toMatchObject({
+      statusCode: 401,
+      statusMessage: 'Unauthorized: Invalid or missing administrative token'
+    })
   })
 
   it('returns logs when correct X-Radar-Key provided', async () => {
@@ -189,8 +197,10 @@ describe('webhook logs — auth guard', () => {
     expect(result).toMatchObject({ logs: [] })
   })
 
-  it('allows unauthenticated access when RADAR_API_KEY not configured', async () => {
+  it('allows access in dev mode when radar-dev-token is provided without configured secret', async () => {
     delete process.env.RADAR_API_KEY
+    delete process.env.RADAR_ADMIN_TOKEN
+    globalScope.getRequestHeader.mockReturnValue('radar-dev-token')
 
     const result = await invokeLogs()
     expect(result).toMatchObject({ logs: [] })
