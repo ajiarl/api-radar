@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { validateAdminAuth } from '../../utils/auth'
 
 const CreateTargetSchema = z.object({
   id: z.string().optional(),
@@ -10,6 +11,7 @@ const CreateTargetSchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  validateAdminAuth(event)
   const rawBody = await readBody(event).catch(() => ({}))
 
   const parseResult = CreateTargetSchema.safeParse(rawBody)

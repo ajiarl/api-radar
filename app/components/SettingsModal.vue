@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { pollOptions } from '~/components/radar/types'
+import { useRadarAuth } from '~/composables/useRadarAuth'
 
 defineProps<{ open: boolean }>()
 
@@ -8,20 +9,24 @@ const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 
 const defaultTimeout = ref(5000)
 const defaultRefresh = ref(0)
-const radarApiKey = ref('')
+const { radarApiKey: authKey, setApiKey } = useRadarAuth()
+const radarApiKey = ref(authKey.value)
+
+watch(authKey, (val) => {
+  radarApiKey.value = val
+})
 
 if (import.meta.client) {
   defaultTimeout.value = Number(localStorage.getItem('radarDefaultTimeout') ?? 5000)
   defaultRefresh.value = Number(localStorage.getItem('radarDefaultRefreshInterval') ?? 0)
-  radarApiKey.value = localStorage.getItem('radarApiKey') ?? ''
 }
 
 function save() {
   if (import.meta.client) {
     localStorage.setItem('radarDefaultTimeout', String(defaultTimeout.value))
     localStorage.setItem('radarDefaultRefreshInterval', String(defaultRefresh.value))
-    localStorage.setItem('radarApiKey', radarApiKey.value)
   }
+  setApiKey(radarApiKey.value)
   emit('update:open', false)
 }
 </script>
@@ -62,12 +67,12 @@ function save() {
         <UFormField
           label="Radar API Key"
           name="apiKey"
-          help="Kunci untuk mengakses /api/webhook/logs jika RADAR_API_KEY dikonfigurasi di server."
+          help="Kunci otentikasi administratif untuk mengakses radar dan webhook."
         >
           <UInput
             v-model="radarApiKey"
             type="password"
-            placeholder="Kosongkan jika tidak dikonfigurasi"
+            placeholder="radar-dev-token di development"
           />
         </UFormField>
       </div>

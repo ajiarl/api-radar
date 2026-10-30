@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { RadarTargetItem } from './types'
+import { useRadarAuth } from '~/composables/useRadarAuth'
 
 const props = defineProps<{
   target: RadarTargetItem | null
@@ -12,6 +13,7 @@ const emit = defineEmits<{
 
 const isDeleting = ref(false)
 const toast = useToast()
+const { authHeaders } = useRadarAuth()
 
 function handleClose(open: boolean) {
   if (!open) {
@@ -24,7 +26,7 @@ async function confirmDelete() {
   const currentTarget = props.target
   isDeleting.value = true
   try {
-    await $fetch(`/api/radar/targets/${currentTarget.id}`, { method: 'DELETE' })
+    await $fetch(`/api/radar/targets/${currentTarget.id}`, { method: 'DELETE', headers: authHeaders.value })
     toast.add({
       title: 'Target Dihapus',
       description: `Endpoint "${currentTarget.name}" berhasil dihapus dari radar.`,

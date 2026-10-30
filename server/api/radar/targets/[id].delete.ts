@@ -1,6 +1,8 @@
 import type { RadarTarget } from '../../../utils/targets'
+import { validateAdminAuth } from '../../../utils/auth'
 
 export default defineEventHandler(async (event) => {
+  validateAdminAuth(event)
   const id = getRouterParam(event, 'id')
 
   if (!id || typeof id !== 'string' || id.trim() === '') {

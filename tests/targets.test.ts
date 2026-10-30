@@ -8,6 +8,10 @@ import targetsDeleteHandler from '../server/api/radar/targets/[id].delete'
 import { DEFAULT_TARGETS } from '../server/utils/targets'
 import { validateTargetUrl } from '../server/utils/ssrf/ipClassifier'
 
+vi.mock('../server/utils/auth', () => ({
+  validateAdminAuth: vi.fn()
+}))
+
 const mocks = vi.hoisted(() => {
   const storage = {
     getItem: vi.fn(),
@@ -47,7 +51,7 @@ beforeEach(() => {
   delete process.env.ALLOW_LOCAL_BYPASS
 })
 
-describe('targets.get — seeding', () => {
+describe('targets.get - seeding', () => {
   it('returns DEFAULT_TARGETS when storage empty and ALLOW_LOCAL_BYPASS=true', async () => {
     mocks.storage.getItem.mockResolvedValue(null)
     mocks.storage.setItem.mockResolvedValue(undefined)
@@ -77,7 +81,7 @@ describe('targets.get — seeding', () => {
   })
 })
 
-describe('targets.post — create', () => {
+describe('targets.post - create', () => {
   it('creates a valid new target and returns success: true', async () => {
     globalScope.readBody = vi.fn().mockResolvedValue({
       name: 'Test API',
@@ -123,7 +127,7 @@ describe('targets.post — create', () => {
   })
 })
 
-describe('targets.post — validation', () => {
+describe('targets.post - validation', () => {
   it('rejects empty name with 400', async () => {
     globalScope.readBody = vi.fn().mockResolvedValue({
       name: '',

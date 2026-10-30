@@ -1,3 +1,5 @@
+import { validateAdminAuth } from '../../utils/auth'
+
 export interface WebhookLogItem {
   key?: string
   channelId: string
@@ -9,16 +11,7 @@ export interface WebhookLogItem {
 }
 
 export default defineEventHandler(async (event) => {
-  const apiKey = process.env.RADAR_API_KEY
-  if (apiKey) {
-    const provided = getRequestHeader(event, 'x-radar-key')
-    if (!provided || provided !== apiKey) {
-      throw createError({
-        statusCode: 401,
-        statusMessage: 'Unauthorized: X-Radar-Key tidak valid atau tidak disertakan'
-      })
-    }
-  }
+  validateAdminAuth(event)
 
   const storage = useStorage('webhook')
   const keys = await storage.getKeys()

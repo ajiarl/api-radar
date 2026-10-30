@@ -1,4 +1,7 @@
+import { validateAdminAuth } from '../../../utils/auth'
+
 export default defineEventHandler(async (event) => {
+  validateAdminAuth(event)
   const id = getRouterParam(event, 'id')
   if (!id || !/^[a-zA-Z0-9_-]{1,64}$/.test(id)) {
     throw createError({ statusCode: 400, statusMessage: 'Parameter id tidak valid' })
