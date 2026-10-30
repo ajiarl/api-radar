@@ -6,7 +6,7 @@ import targetsGetHandler from '../server/api/radar/targets.get'
 import targetsPostHandler from '../server/api/radar/targets.post'
 import targetsDeleteHandler from '../server/api/radar/targets/[id].delete'
 import { DEFAULT_TARGETS } from '../server/utils/targets'
-import { validateTargetUrl } from '../server/utils/ssrf'
+import { validateTargetUrl } from '../server/utils/ssrf/ipClassifier'
 
 const mocks = vi.hoisted(() => {
   const storage = {
