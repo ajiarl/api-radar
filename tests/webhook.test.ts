@@ -1,7 +1,8 @@
+import { EventEmitter } from 'node:events'
+import { Buffer } from 'node:buffer'
 import type { Mock } from 'vitest'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { WebhookLogItem } from '../server/api/webhook/logs.get'
-
 import webhookHandler from '../server/api/webhook/[channelId].all'
 import logsGetHandler from '../server/api/webhook/logs.get'
 import { checkRateLimit } from '../server/utils/rateLimit'
@@ -9,7 +10,6 @@ import { checkRateLimit } from '../server/utils/rateLimit'
 const mocks = vi.hoisted(() => {
   const radarStorage = { getItem: vi.fn(), setItem: vi.fn(), getKeys: vi.fn() }
   const webhookStorage = { getItem: vi.fn(), setItem: vi.fn(), getKeys: vi.fn() }
-
   const globalScope = globalThis as unknown as Record<string, unknown>
   globalScope.defineEventHandler = (fn: (...args: unknown[]) => unknown) => fn
   globalScope.useStorage = (ns?: string) => (ns === 'radar' ? radarStorage : webhookStorage)
@@ -25,7 +25,6 @@ const mocks = vi.hoisted(() => {
     err.statusMessage = statusMessage
     return err
   }
-
   return { radarStorage, webhookStorage }
 })
 
@@ -44,6 +43,7 @@ const globalScope = globalThis as unknown as {
 
 interface MockEvent {
   method?: string
+  node?: { req?: unknown }
 }
 
 type IngressHandlerFn = (event?: MockEvent) => Promise<{ success: boolean, channelId?: string }>
@@ -58,30 +58,26 @@ beforeEach(() => {
   mockCheckRateLimit.mockReturnValue(true)
   globalScope.getQuery.mockReturnValue({})
   globalScope.getRequestHeaders.mockReturnValue({})
+  globalScope.getRequestHeader.mockReturnValue(undefined)
   globalScope.readBody.mockResolvedValue(null)
   mocks.webhookStorage.setItem.mockResolvedValue(undefined)
   mocks.webhookStorage.getItem.mockResolvedValue(null)
   mocks.webhookStorage.getKeys.mockResolvedValue([])
-  delete process.env.RADAR_API_KEY
-  delete process.env.RADAR_ADMIN_TOKEN
 })
 
 describe('webhook ingress - channelId validation', () => {
-  it('accepts valid alphanumeric channelId', async () => {
-    globalScope.getRouterParam.mockReturnValue('valid-chan')
-    globalScope.readBody.mockResolvedValue(null)
-
-    const result = await invokeWebhook({ method: 'POST' })
-    expect(result).toMatchObject({ success: true, channelId: 'valid-chan' })
-  })
-
-  it('rejects channelId with special characters with 400', async () => {
-    globalScope.getRouterParam.mockReturnValue('invalid channel!')
+  it('rejects missing channelId with 400', async () => {
+    globalScope.getRouterParam.mockReturnValue(undefined)
     await expect(invokeWebhook({ method: 'POST' })).rejects.toMatchObject({ statusCode: 400 })
   })
 
-  it('rejects channelId longer than 64 chars with 400', async () => {
-    globalScope.getRouterParam.mockReturnValue('a'.repeat(65))
+  it('rejects channelId with path traversal characters', async () => {
+    globalScope.getRouterParam.mockReturnValue('../evil')
+    await expect(invokeWebhook({ method: 'POST' })).rejects.toMatchObject({ statusCode: 400 })
+  })
+
+  it('rejects channelId with special characters', async () => {
+    globalScope.getRouterParam.mockReturnValue('chan$id!')
     await expect(invokeWebhook({ method: 'POST' })).rejects.toMatchObject({ statusCode: 400 })
   })
 
@@ -96,7 +92,6 @@ describe('webhook ingress - payload size', () => {
   it('accepts body exactly at 100KB limit', async () => {
     globalScope.readBody.mockResolvedValue('x'.repeat(102400))
     globalScope.getRouterParam.mockReturnValue('chan')
-
     const result = await invokeWebhook({ method: 'POST' })
     expect(result).toMatchObject({ success: true })
   })
@@ -104,14 +99,31 @@ describe('webhook ingress - payload size', () => {
   it('rejects body exceeding 100KB with 413', async () => {
     globalScope.readBody.mockResolvedValue('x'.repeat(102401))
     globalScope.getRouterParam.mockReturnValue('chan')
-
     await expect(invokeWebhook({ method: 'POST' })).rejects.toMatchObject({ statusCode: 413 })
+  })
+
+  it('rejects early when Content-Length exceeds 100KB', async () => {
+    globalScope.getRouterParam.mockReturnValue('chan')
+    globalScope.getRequestHeader.mockImplementation((_event, name) => {
+      return name === 'content-length' ? '102401' : undefined
+    })
+    await expect(invokeWebhook({ method: 'POST' })).rejects.toMatchObject({ statusCode: 413 })
+  })
+
+  it('aborts socket and throws 413 when stream chunks exceed 100KB', async () => {
+    globalScope.getRouterParam.mockReturnValue('chan')
+    const req = new EventEmitter() as EventEmitter & { destroy: Mock }
+    req.destroy = vi.fn()
+    const promise = invokeWebhook({ method: 'POST', node: { req } })
+    req.emit('data', Buffer.alloc(60000))
+    req.emit('data', Buffer.alloc(50000))
+    await expect(promise).rejects.toMatchObject({ statusCode: 413 })
+    expect(req.destroy).toHaveBeenCalled()
   })
 
   it('accepts JSON body within limit', async () => {
     globalScope.readBody.mockResolvedValue({ data: 'x'.repeat(100) })
     globalScope.getRouterParam.mockReturnValue('chan')
-
     const result = await invokeWebhook({ method: 'POST' })
     expect(result).toMatchObject({ success: true })
   })
@@ -124,8 +136,6 @@ describe('webhook ingress - header masking', () => {
       'content-type': 'application/json'
     })
     globalScope.getRouterParam.mockReturnValue('chan')
-    globalScope.readBody.mockResolvedValue(null)
-
     await invokeWebhook({ method: 'POST' })
     const storedItem = mocks.webhookStorage.setItem.mock.calls[0][1] as WebhookLogItem
     expect(storedItem.headers.authorization).toBe('***MASKED***')
@@ -135,8 +145,6 @@ describe('webhook ingress - header masking', () => {
   it('masks Cookie header', async () => {
     globalScope.getRequestHeaders.mockReturnValue({ cookie: 'session=abc123' })
     globalScope.getRouterParam.mockReturnValue('chan')
-    globalScope.readBody.mockResolvedValue(null)
-
     await invokeWebhook({ method: 'POST' })
     const storedItem = mocks.webhookStorage.setItem.mock.calls[0][1] as WebhookLogItem
     expect(storedItem.headers.cookie).toBe('***MASKED***')
@@ -145,8 +153,6 @@ describe('webhook ingress - header masking', () => {
   it('masks x-api-key header', async () => {
     globalScope.getRequestHeaders.mockReturnValue({ 'x-api-key': 'secret' })
     globalScope.getRouterParam.mockReturnValue('chan')
-    globalScope.readBody.mockResolvedValue(null)
-
     await invokeWebhook({ method: 'POST' })
     const storedItem = mocks.webhookStorage.setItem.mock.calls[0][1] as WebhookLogItem
     expect(storedItem.headers['x-api-key']).toBe('***MASKED***')
@@ -158,12 +164,28 @@ describe('webhook ingress - header masking', () => {
       'host': 'example.com'
     })
     globalScope.getRouterParam.mockReturnValue('chan')
-    globalScope.readBody.mockResolvedValue(null)
-
     await invokeWebhook({ method: 'POST' })
     const storedItem = mocks.webhookStorage.setItem.mock.calls[0][1] as WebhookLogItem
     expect(storedItem.headers['user-agent']).toBe('curl/8.0')
     expect(storedItem.headers.host).toBe('example.com')
+  })
+})
+
+describe('webhook ingress - payload & query sanitization', () => {
+  it('sanitizes sensitive keys in query parameters', async () => {
+    globalScope.getRouterParam.mockReturnValue('chan')
+    globalScope.getQuery.mockReturnValue({ token: 'secret123', user: 'dev' })
+    await invokeWebhook({ method: 'POST' })
+    const storedItem = mocks.webhookStorage.setItem.mock.calls[0][1] as WebhookLogItem
+    expect(storedItem.query).toEqual({ token: '[MASKED]', user: 'dev' })
+  })
+
+  it('sanitizes sensitive keys in JSON body', async () => {
+    globalScope.getRouterParam.mockReturnValue('chan')
+    globalScope.readBody.mockResolvedValue({ user: { token: 'abc' }, data: 'ok' })
+    await invokeWebhook({ method: 'POST' })
+    const storedItem = mocks.webhookStorage.setItem.mock.calls[0][1] as WebhookLogItem
+    expect(storedItem.body).toEqual({ user: { token: '[MASKED]' }, data: 'ok' })
   })
 })
 
@@ -172,37 +194,41 @@ describe('webhook logs - auth guard', () => {
     delete process.env.RADAR_API_KEY
     delete process.env.RADAR_ADMIN_TOKEN
     globalScope.getRequestHeader.mockReturnValue(undefined)
-
     await expect(invokeLogs()).rejects.toMatchObject({
       statusCode: 401,
       statusMessage: 'Unauthorized: Invalid or missing administrative token'
     })
   })
 
-  it('returns 401 when RADAR_API_KEY set and wrong key provided', async () => {
-    process.env.RADAR_API_KEY = 'secret-key'
-    globalScope.getRequestHeader.mockReturnValue('wrong-key')
-
-    await expect(invokeLogs()).rejects.toMatchObject({
-      statusCode: 401,
-      statusMessage: 'Unauthorized: Invalid or missing administrative token'
-    })
-  })
-
-  it('returns logs when correct X-Radar-Key provided', async () => {
-    process.env.RADAR_API_KEY = 'secret-key'
-    globalScope.getRequestHeader.mockReturnValue('secret-key')
-
-    const result = await invokeLogs()
-    expect(result).toMatchObject({ logs: [] })
-  })
-
-  it('allows access in dev mode when radar-dev-token is provided without configured secret', async () => {
+  it('accepts dev fallback token when RADAR_ADMIN_TOKEN is unset in non-production', async () => {
     delete process.env.RADAR_API_KEY
     delete process.env.RADAR_ADMIN_TOKEN
-    globalScope.getRequestHeader.mockReturnValue('radar-dev-token')
-
+    globalScope.getRequestHeader.mockImplementation((_event, name) => {
+      return name === 'x-radar-key' ? 'radar-dev-token' : undefined
+    })
     const result = await invokeLogs()
     expect(result).toMatchObject({ logs: [] })
+  })
+
+  it('accepts configured RADAR_ADMIN_TOKEN in header', async () => {
+    process.env.RADAR_ADMIN_TOKEN = 'secret-admin-pass'
+    globalScope.getRequestHeader.mockImplementation((_event, name) => {
+      return name === 'x-radar-key' ? 'secret-admin-pass' : undefined
+    })
+    const result = await invokeLogs()
+    expect(result).toMatchObject({ logs: [] })
+    delete process.env.RADAR_ADMIN_TOKEN
+  })
+
+  it('rejects incorrect key when RADAR_ADMIN_TOKEN is set', async () => {
+    process.env.RADAR_ADMIN_TOKEN = 'secret-admin-pass'
+    globalScope.getRequestHeader.mockImplementation((_event, name) => {
+      return name === 'x-radar-key' ? 'wrong-pass' : undefined
+    })
+    await expect(invokeLogs()).rejects.toMatchObject({
+      statusCode: 401,
+      statusMessage: 'Unauthorized: Invalid or missing administrative token'
+    })
+    delete process.env.RADAR_ADMIN_TOKEN
   })
 })
