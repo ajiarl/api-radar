@@ -1,14 +1,14 @@
 # API & Webhook Radar
 
 [![CI Quality Gates](https://github.com/ajiarl/api-radar/actions/workflows/ci.yml/badge.svg)](https://github.com/ajiarl/api-radar/actions)
-[![Vitest](https://img.shields.io/badge/Vitest-101%20Passed-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev)
+[![Vitest](https://img.shields.io/badge/Vitest-107%20Passed-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev)
 [![Nuxt 4](https://img.shields.io/badge/Nuxt-4.6.2-00DC82?logo=nuxt.js&logoColor=white)](https://nuxt.com)
 [![Nitro Engine](https://img.shields.io/badge/Nitro-2.13.4-F43F5E?logo=nitro&logoColor=white)](https://nitro.unjs.io)
 [![Nuxt UI](https://img.shields.io/badge/Nuxt%20UI-4.12.0-00DC82?logo=nuxt.js&logoColor=white)](https://ui.nuxt.com)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4.3-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> A high-density developer cockpit for real-time outbound endpoint telemetry, SSRF-guarded probing, and multi-channel webhook ingress debugging.
+> A production-ready portfolio prototype and developer diagnostic cockpit for real-time outbound endpoint telemetry, SSRF-guarded probing, and multi-channel webhook ingress debugging. Single-user architecture: not a multi-tenant SaaS system.
 
 ---
 
@@ -92,9 +92,12 @@ Target health probing and telemetry collection are driven by active client brows
 - **No Background Daemon**: The server runtime does not host a standalone background cron worker or long-running OS daemon. Probing occurs strictly upon manual user trigger or while an active cockpit browser session is open.
 
 ### Payload & Sanitization Boundaries
-- **Webhook Ingress Stream Limit (100KB)**: Webhook ingress enforces a strict 100KB boundary (`100 * 1024` bytes). Requests with a `Content-Length` exceeding 100KB are rejected immediately before reading request streams. For chunked streams without length headers, incoming chunks are counted in real-time; exceeding 100KB immediately destroys the socket and yields HTTP 413.
-- **Probe Ping Truncation (50KB)**: Outbound probe ping response bodies are truncated at 50KB to protect server memory buffers from oversized payloads.
+- **Webhook Ingress Stream Limit (100KB)**: Webhook ingress enforces a strict 100KB boundary (`100 * 1024` bytes). Requests with a `Content-Length` exceeding 100KB are rejected immediately before reading request streams. For chunked streams without length headers, incoming chunks are counted in real-time; once 100KB is exceeded, the stream is drained passively and HTTP 413 is returned with a clean response envelope.
+- **Probe Ping Stream Cap (50KB)**: Outbound probe ping response bodies are read from the upstream ReadableStream chunk-by-chunk; accumulation stops at 51,200 bytes (50KB) and `reader.cancel()` is called immediately, protecting server memory from oversized upstream responses before any buffering occurs.
 - **Recursive Payload Masking**: Ingress webhook headers (`Authorization`, `Cookie`, `X-Api-Key`, etc.) are masked to `***MASKED***`. Query parameters and JSON bodies are recursively parsed up to depth 5 with sensitive keys matching `/password|secret|token|api_?key|auth|cred|private/i` replaced with `[MASKED]`.
+
+### Authentication Architecture
+The admin token model is single-user: one shared secret (`RADAR_ADMIN_TOKEN` or `RADAR_API_KEY`) protects all admin endpoints. The token is stored client-side in a `SameSite=strict` HTTP cookie (`radar_token`). This architecture is suitable for a personal developer tool or portfolio prototype. It is not a multi-tenant, per-user authentication system and does not support role-based access control, token rotation, or revocation.
 
 ---
 
@@ -115,7 +118,7 @@ Target health probing and telemetry collection are driven by active client brows
 ### Multi-Channel Webhook Ingress
 - **Dynamic Catch-All Ingress**: Capture incoming HTTP webhooks from external providers on any channel path (`/api/webhook/:channelId`).
 - **IP-Based Sliding Window Rate Limiting**: Built-in rate limiter caps ingress traffic at 300 requests per minute per IP to protect backend storage.
-- **Stream-Level 100KB Boundary**: Early `Content-Length` verification and chunked stream socket aborts reject requests exceeding 100KB with HTTP 413 (Payload Too Large).
+- **Stream-Level 100KB Boundary**: Early `Content-Length` verification and chunked stream passive drain reject requests exceeding 100KB with HTTP 413 (Payload Too Large).
 - **Automated Zero-Trust Credential Redaction**: Automatically sanitizes sensitive authentication headers (`Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key`, `Token`, `Secret`) replacing values with `***MASKED***`, and recursively masks query parameters and JSON payload keys with `[MASKED]`.
 
 ### Administrative Security & Fail-Closed Guard
@@ -186,7 +189,7 @@ Navigate to `http://localhost:3000` to access the developer cockpit.
 Run the full quality assurance pipeline locally:
 
 ```bash
-# Run Vitest test suite (101 tests covering SSRF, targets, webhooks, sanitization, auth, and rate limiting)
+# Run Vitest test suite (107 tests covering SSRF, targets, webhooks, sanitization, auth, and rate limiting)
 pnpm test
 
 # Run ESLint validation

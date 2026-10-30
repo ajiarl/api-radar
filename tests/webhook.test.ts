@@ -110,15 +110,18 @@ describe('webhook ingress - payload size', () => {
     await expect(invokeWebhook({ method: 'POST' })).rejects.toMatchObject({ statusCode: 413 })
   })
 
-  it('aborts socket and throws 413 when stream chunks exceed 100KB', async () => {
+  it('drains stream and throws 413 without destroying socket when chunks exceed 100KB', async () => {
     globalScope.getRouterParam.mockReturnValue('chan')
-    const req = new EventEmitter() as EventEmitter & { destroy: Mock }
+    const req = new EventEmitter() as EventEmitter & { destroy: Mock, resume: Mock, readable: boolean }
     req.destroy = vi.fn()
+    req.resume = vi.fn()
+    req.readable = true
     const promise = invokeWebhook({ method: 'POST', node: { req } })
     req.emit('data', Buffer.alloc(60000))
     req.emit('data', Buffer.alloc(50000))
     await expect(promise).rejects.toMatchObject({ statusCode: 413 })
-    expect(req.destroy).toHaveBeenCalled()
+    expect(req.destroy).not.toHaveBeenCalled()
+    expect(req.resume).toHaveBeenCalled()
   })
 
   it('accepts JSON body within limit', async () => {
