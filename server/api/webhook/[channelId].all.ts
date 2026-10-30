@@ -1,3 +1,5 @@
+import { checkRateLimit } from '../../utils/rateLimit'
+
 const SENSITIVE_HEADERS: Record<string, true> = {
   'authorization': true,
   'cookie': true,
@@ -11,15 +13,27 @@ const SENSITIVE_HEADERS: Record<string, true> = {
   'x-secret': true
 }
 
+const MAX_WEBHOOK_BODY_BYTES = 100 * 1024 // 100KB
+const CHANNEL_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/
+
 export default defineEventHandler(async (event) => {
   let channelId = getRouterParam(event, 'channelId') ?? getRouterParam(event, 'channelId.all')
   if (channelId && channelId.endsWith('.all')) {
     channelId = channelId.slice(0, -4)
   }
-  if (!channelId || channelId.trim().length === 0) {
+  if (!channelId || !CHANNEL_ID_REGEX.test(channelId)) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Parameter channelId wajib disertakan'
+      statusMessage: 'channelId harus 1–64 karakter alfanumerik, underscore, atau hyphen'
+    })
+  }
+
+  // SEC-005: Rate limiting per IP (300 webhook / min)
+  const clientIp = getRequestIP(event, { xForwardedFor: true }) ?? 'unknown'
+  if (!checkRateLimit(`webhook:${clientIp}`, 300, 60_000)) {
+    throw createError({
+      statusCode: 429,
+      statusMessage: 'Rate limit exceeded: maksimum 300 webhook per menit per IP'
     })
   }
 
@@ -46,6 +60,25 @@ export default defineEventHandler(async (event) => {
 
   const query = getQuery(event)
   const body = await readBody(event).catch(() => null)
+
+  if (body !== null) {
+    let bodySize: number
+    if (typeof body === 'string') {
+      bodySize = Buffer.byteLength(body, 'utf8')
+    } else {
+      try {
+        bodySize = Buffer.byteLength(JSON.stringify(body), 'utf8')
+      } catch {
+        bodySize = 0
+      }
+    }
+    if (bodySize > MAX_WEBHOOK_BODY_BYTES) {
+      throw createError({
+        statusCode: 413,
+        statusMessage: 'Payload terlalu besar. Maksimum 100KB.'
+      })
+    }
+  }
   const capturedAt = new Date().toISOString()
 
   const capturePayload = {

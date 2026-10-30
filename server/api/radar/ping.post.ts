@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { validateTargetUrlWithDNS } from '../../utils/ssrf'
+import { checkRateLimit } from '../../utils/rateLimit'
 
 const PingSchema = z.object({
   id: z.string().optional(),
@@ -45,13 +47,29 @@ export default defineEventHandler(async (event) => {
   }
 
   const { id, url, method, allowLocal, headers, body } = parseResult.data
+  // SEC-007: Guard allowLocal via ALLOW_LOCAL_BYPASS env var
+  if (allowLocal && process.env.ALLOW_LOCAL_BYPASS !== 'true') {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'allowLocal bypass tidak diizinkan di environment ini. Set ALLOW_LOCAL_BYPASS=true untuk mengaktifkan.'
+    })
+  }
 
-  // SSRF Guard
-  const ssrfCheck = validateTargetUrl(url, allowLocal)
+  // SEC-005: Rate limiting per IP (60 req / min)
+  const clientIp = getRequestIP(event, { xForwardedFor: true }) ?? 'unknown'
+  if (!checkRateLimit(`ping:${clientIp}`, 60, 60_000)) {
+    throw createError({
+      statusCode: 429,
+      statusMessage: 'Rate limit exceeded: maksimum 60 ping per menit per IP'
+    })
+  }
+
+  // SSRF Guard (SEC-001)
+  const ssrfCheck = await validateTargetUrlWithDNS(url, allowLocal)
   if (!ssrfCheck.isValid) {
     throw createError({
       statusCode: 403,
-      statusMessage: 'SSRF Protection: Target IP/Host diblokir'
+      statusMessage: ssrfCheck.error || 'SSRF Protection: Target IP/Host diblokir'
     })
   }
 
