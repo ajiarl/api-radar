@@ -40,6 +40,8 @@ if (import.meta.client) {
     // Ignore localStorage access issues in restricted environments
   }
 }
+
+const isSettingsOpen = ref(false)
 </script>
 
 <template>
@@ -83,6 +85,16 @@ if (import.meta.client) {
           </nav>
 
           <div class="flex items-center gap-3">
+            <button
+              class="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition"
+              title="Pengaturan"
+              @click="isSettingsOpen = true"
+            >
+              <UIcon
+                name="i-lucide-settings"
+                class="size-4"
+              />
+            </button>
             <div class="flex items-center gap-2 text-xs font-medium text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
               <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>All systems healthy</span>
@@ -105,5 +117,6 @@ if (import.meta.client) {
         </div>
       </footer>
     </div>
+    <SettingsModal v-model:open="isSettingsOpen" />
   </UApp>
 </template>

@@ -17,11 +17,19 @@ const emit = defineEmits<{
 }>()
 
 const { copy, copied } = useClipboard()
+const methodFilter = ref<string | null>(null)
+const availableMethods = computed(() =>
+  [...new Set(props.webhookLogs.map(l => l.method))].sort()
+)
 
 const filteredWebhookLogs = computed(() => {
+  let logs = props.webhookLogs
+  if (methodFilter.value) {
+    logs = logs.filter(l => l.method === methodFilter.value)
+  }
   const q = props.webhookSearch.trim().toLowerCase()
-  if (!q) return props.webhookLogs
-  return props.webhookLogs.filter(l => l.channelId.toLowerCase().includes(q) || l.method.toLowerCase().includes(q))
+  if (!q) return logs
+  return logs.filter(l => l.channelId.toLowerCase().includes(q) || l.method.toLowerCase().includes(q))
 })
 
 function formatRelativeTime(isoString?: string): string {
@@ -51,6 +59,26 @@ function formatJson(data: unknown): string {
   } catch {
     return String(data)
   }
+}
+
+function methodBadgeClass(method: string): string {
+  const map: Record<string, string> = {
+    GET: 'bg-slate-100 text-slate-700 border-slate-200',
+    POST: 'bg-purple-50 text-purple-700 border-purple-200',
+    PUT: 'bg-amber-50 text-amber-700 border-amber-200',
+    DELETE: 'bg-rose-50 text-rose-700 border-rose-200',
+    PATCH: 'bg-sky-50 text-sky-700 border-sky-200'
+  }
+  return map[method] ?? 'bg-slate-100 text-slate-700 border-slate-200'
+}
+
+function bodyContentType(log: WebhookLogItem): string {
+  const ct = log.headers?.['content-type'] ?? log.headers?.['Content-Type'] ?? ''
+  if (ct.includes('application/json')) return 'JSON'
+  if (ct.includes('application/x-www-form-urlencoded')) return 'Form Data'
+  if (ct.includes('text/')) return 'Text'
+  if (!ct) return 'Unknown'
+  return ct.split(';')[0]?.trim() ?? 'Unknown'
 }
 </script>
 
@@ -113,6 +141,25 @@ function formatJson(data: unknown): string {
           </span>
         </div>
 
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <button
+            class="px-2 py-0.5 rounded-full text-xs font-medium border transition"
+            :class="methodFilter === null ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'"
+            @click="methodFilter = null"
+          >
+            All
+          </button>
+          <button
+            v-for="m in availableMethods"
+            :key="m"
+            class="px-2 py-0.5 rounded-full text-xs font-mono font-medium border transition"
+            :class="methodFilter === m ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'"
+            @click="methodFilter = m"
+          >
+            {{ m }}
+          </button>
+        </div>
+
         <div class="relative w-64">
           <UIcon
             name="i-lucide-search"
@@ -170,12 +217,11 @@ function formatJson(data: unknown): string {
               <td class="py-3.5 px-6 whitespace-nowrap">
                 <span
                   class="px-2 py-0.5 rounded text-xs font-mono font-bold border"
-                  :class="log.method === 'POST' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-slate-100 text-slate-700 border-slate-200'"
+                  :class="methodBadgeClass(log.method)"
                 >
                   {{ log.method }}
                 </span>
               </td>
-
               <td class="py-3.5 px-6 text-xs text-slate-600 whitespace-nowrap">
                 <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                   <UIcon
@@ -258,17 +304,46 @@ function formatJson(data: unknown): string {
           <p class="text-xs font-semibold text-slate-700">
             Query Parameters:
           </p>
-          <div class="bg-slate-50 rounded-lg p-3.5 font-mono text-xs text-slate-800 overflow-x-auto max-h-44 leading-relaxed border border-slate-200">
-            <pre><code>{{ formatJson(selectedWebhook.query) }}</code></pre>
+          <div class="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
+            <div
+              v-if="Object.keys(selectedWebhook.query || {}).length === 0"
+              class="p-3.5 text-xs text-slate-400 font-mono"
+            >
+              (kosong)
+            </div>
+            <table
+              v-else
+              class="w-full text-xs"
+            >
+              <tbody>
+                <tr
+                  v-for="(val, key) in selectedWebhook.query"
+                  :key="String(key)"
+                  class="border-b border-slate-100 last:border-0"
+                >
+                  <td class="py-2 px-3 font-mono font-semibold text-slate-700 bg-slate-100 w-1/3 border-r border-slate-200">
+                    {{ key }}
+                  </td>
+                  <td class="py-2 px-3 font-mono text-slate-600 break-all">
+                    {{ String(val) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
       <!-- Body Payload Box -->
       <div class="space-y-1.5">
-        <p class="text-xs font-semibold text-slate-700">
-          Raw Ingress Body Payload:
-        </p>
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold text-slate-700">
+            Request Body:
+          </p>
+          <span class="text-[10px] text-slate-400 font-mono">
+            {{ bodyContentType(selectedWebhook) }}
+          </span>
+        </div>
         <div class="bg-slate-50 rounded-lg p-4 font-mono text-xs text-slate-800 overflow-x-auto max-h-56 leading-relaxed border border-slate-200">
           <pre><code>{{ formatJson(selectedWebhook.body) }}</code></pre>
         </div>
