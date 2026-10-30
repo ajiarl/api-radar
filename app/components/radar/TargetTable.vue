@@ -14,6 +14,7 @@ const emit = defineEmits<{
   'ping': [target: RadarTargetItem]
   'select': [target: RadarTargetItem]
   'delete': [target: RadarTargetItem]
+  'history': [target: RadarTargetItem]
 }>()
 
 function formatRelativeTime(isoString?: string): string {
@@ -197,6 +198,16 @@ function methodBadgeClass(method: string): string {
                   <span>{{ pingingIds[target.id] ? 'Probing...' : 'Ping' }}</span>
                 </button>
 
+                <button
+                  class="px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-medium transition flex items-center gap-1.5 border border-slate-200"
+                  @click="emit('history', target)"
+                >
+                  <UIcon
+                    name="i-lucide-clock"
+                    class="text-xs"
+                  />
+                  <span>History</span>
+                </button>
                 <button
                   class="px-3 py-1.5 rounded-lg transition text-xs font-medium"
                   :class="selectedTargetId === target.id ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'"

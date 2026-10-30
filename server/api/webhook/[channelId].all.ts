@@ -62,14 +62,14 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event).catch(() => null)
 
   if (body !== null) {
-    let bodySize: number
+    let bodySize = 0
     if (typeof body === 'string') {
       bodySize = Buffer.byteLength(body, 'utf8')
     } else {
       try {
         bodySize = Buffer.byteLength(JSON.stringify(body), 'utf8')
       } catch {
-        bodySize = 0
+        // bodySize tetap 0 jika JSON.stringify gagal — lolos batas size check
       }
     }
     if (bodySize > MAX_WEBHOOK_BODY_BYTES) {

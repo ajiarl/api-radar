@@ -13,7 +13,13 @@ const pingingIds = ref<Record<string, boolean>>({})
 const isPingingAll = ref(false)
 const searchQuery = ref('')
 
-const { data: webhookLogsData, refresh: refreshWebhookLogs, status: webhookFetchStatus } = await useFetch<{ logs: WebhookLogItem[] }>('/api/webhook/logs')
+const radarApiKeyHeader = import.meta.client
+  ? (localStorage.getItem('radarApiKey') ?? '')
+  : ''
+
+const { data: webhookLogsData, refresh: refreshWebhookLogs, status: webhookFetchStatus } = await useFetch<{ logs: WebhookLogItem[] }>('/api/webhook/logs', {
+  headers: radarApiKeyHeader ? { 'x-radar-key': radarApiKeyHeader } : {}
+})
 const webhookLogs = computed(() => webhookLogsData.value?.logs || [])
 const selectedWebhook = ref<WebhookLogItem | null>(null)
 const webhookSearch = ref('')
@@ -62,6 +68,13 @@ const uptimeRate = computed(() => {
   const tested = targets.value.filter(t => t.lastPing && t.lastPing.status > 0)
   return tested.length ? Math.round((tested.filter(t => t.lastPing?.status === 200).length / tested.length) * 100) : 100
 })
+const statusDistribution = computed(() => {
+  const ok = targets.value.filter(t => t.lastPing && t.lastPing.status >= 200 && t.lastPing.status < 300).length
+  const clientErr = targets.value.filter(t => t.lastPing && t.lastPing.status >= 400 && t.lastPing.status < 500).length
+  const serverErr = targets.value.filter(t => t.lastPing && t.lastPing.status >= 500).length
+  const pending = targets.value.filter(t => !t.lastPing).length
+  return { ok, clientErr, serverErr, pending }
+})
 
 async function pingTarget(target: RadarTargetItem) {
   pingingIds.value[target.id] = true
@@ -90,6 +103,12 @@ async function pingAllTargets() {
 }
 
 const pollInterval = ref<number>(0)
+if (import.meta.client) {
+  const stored = Number(localStorage.getItem('radarDefaultRefreshInterval') ?? 0)
+  if (stored > 0) {
+    pollInterval.value = stored
+  }
+}
 const { pause, resume } = useIntervalFn(
   () => { if (pollInterval.value > 0) pingAllTargets() },
   computed(() => (pollInterval.value > 0 ? pollInterval.value : 10000)),
@@ -165,6 +184,14 @@ async function confirmDelete() {
 function handleCloseDeleteModal(open: boolean) {
   if (!open) confirmDeleteTarget.value = null
 }
+
+const isHistoryOpen = ref(false)
+const historyTarget = ref<RadarTargetItem | null>(null)
+
+function openHistory(target: RadarTargetItem) {
+  historyTarget.value = target
+  isHistoryOpen.value = true
+}
 </script>
 
 <template>
@@ -217,6 +244,7 @@ function handleCloseDeleteModal(open: boolean) {
       :average-latency="averageLatency"
       :uptime-rate="uptimeRate"
       :healthy-count="healthyCount"
+      :status-distribution="statusDistribution"
     />
 
     <RadarTargetTable
@@ -229,6 +257,7 @@ function handleCloseDeleteModal(open: boolean) {
       @ping="pingTarget"
       @select="selectedTarget = $event"
       @delete="requestDeleteTarget"
+      @history="openHistory"
     />
 
     <RadarResponseDetail
@@ -254,6 +283,12 @@ function handleCloseDeleteModal(open: boolean) {
       :is-submitting="isSubmittingTarget"
       :form-error="formError"
       @submit="submitNewTarget"
+    />
+
+    <RadarHistoryDrawer
+      v-model:open="isHistoryOpen"
+      :target-id="historyTarget?.id ?? null"
+      :target-name="historyTarget?.name ?? ''"
     />
 
     <UModal
