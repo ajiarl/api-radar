@@ -22,6 +22,12 @@ export default defineEventHandler(async (event) => {
   }
 
   const { id, name, url, method, allowLocal, headers } = parseResult.data
+  if (allowLocal && process.env.ALLOW_LOCAL_BYPASS !== 'true') {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'allowLocal bypass tidak diizinkan di environment ini. Set ALLOW_LOCAL_BYPASS=true untuk mengaktifkan.'
+    })
+  }
 
   const ssrfCheck = validateTargetUrl(url, allowLocal)
   if (!ssrfCheck.isValid) {
@@ -34,7 +40,8 @@ export default defineEventHandler(async (event) => {
   const storage = useStorage('radar')
   let targets = await storage.getItem<RadarTarget[]>('config:targets')
   if (!targets || !Array.isArray(targets) || targets.length === 0) {
-    targets = [...DEFAULT_TARGETS]
+    const allowLocalBypass = process.env.ALLOW_LOCAL_BYPASS === 'true'
+    targets = DEFAULT_TARGETS.filter(t => !t.allowLocal || allowLocalBypass)
   }
 
   const targetId = id?.trim() || 'tgt-' + Date.now().toString(36)

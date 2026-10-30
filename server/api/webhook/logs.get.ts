@@ -8,7 +8,18 @@ export interface WebhookLogItem {
   timestamp: string
 }
 
-export default defineEventHandler(async () => {
+export default defineEventHandler(async (event) => {
+  const apiKey = process.env.RADAR_API_KEY
+  if (apiKey) {
+    const provided = getRequestHeader(event, 'x-radar-key')
+    if (!provided || provided !== apiKey) {
+      throw createError({
+        statusCode: 401,
+        statusMessage: 'Unauthorized: X-Radar-Key tidak valid atau tidak disertakan'
+      })
+    }
+  }
+
   const storage = useStorage('webhook')
   const keys = await storage.getKeys()
 

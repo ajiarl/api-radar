@@ -1,3 +1,5 @@
+import { promises as dnsPromises } from 'node:dns'
+
 export interface SsrfValidationResult {
   isValid: boolean
   error?: string
@@ -70,6 +72,18 @@ export function validateTargetUrl(targetUrl: string, allowLocal = false): SsrfVa
   // IPv4-mapped IPv6 (::ffff:127.0.0.1)
   if (host.startsWith('::ffff:')) {
     host = host.slice(7)
+  }
+
+  // Normalisasi hex-pair notation ::ffff:7f00:1 → dotted-decimal
+  if (host.includes(':') && !host.includes('.')) {
+    const parts = host.split(':')
+    if (parts.length === 2) {
+      const high = parseInt(parts[0]!, 16)
+      const low = parseInt(parts[1]!, 16)
+      if (!isNaN(high) && !isNaN(low)) {
+        host = `${(high >> 8) & 0xff}.${high & 0xff}.${(low >> 8) & 0xff}.${low & 0xff}`
+      }
+    }
   }
 
   // IPv6 Unique Local Address (fc00::/7) or Link-Local (fe80::/10)
@@ -145,6 +159,54 @@ export function validateTargetUrl(targetUrl: string, allowLocal = false): SsrfVa
         isValid: false,
         error: 'Akses ke IP shared address (100.64.0.0/10) diblokir oleh SSRF protection'
       }
+    }
+  }
+
+  return { isValid: true }
+}
+
+export async function validateTargetUrlWithDNS(
+  targetUrl: string,
+  allowLocal = false
+): Promise<SsrfValidationResult> {
+  // Tahap 1: validasi statis (protokol, hostname, IP literal)
+  const staticResult = validateTargetUrl(targetUrl, allowLocal)
+  if (!staticResult.isValid) return staticResult
+
+  // Tahap 2: jika allowLocal true, skip DNS check (sudah diperbolehkan)
+  if (allowLocal) return { isValid: true }
+
+  // Tahap 3: resolve hostname, re-check IP hasil resolve
+  let hostname: string
+  try {
+    hostname = new URL(targetUrl).hostname
+  } catch {
+    return { isValid: false, error: 'Format URL tidak valid' }
+  }
+
+  // IP literal lolos static check tapi tidak perlu DNS resolve
+  const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
+  if (ipv4Regex.test(hostname)) return { isValid: true }
+  // IPv6 literal
+  if (hostname.startsWith('[') || hostname.includes(':')) return { isValid: true }
+
+  let resolvedIp: string
+  try {
+    const result = await dnsPromises.lookup(hostname, { family: 4 })
+    resolvedIp = result.address
+  } catch {
+    return {
+      isValid: false,
+      error: 'Gagal melakukan DNS resolve — hostname tidak dapat diverifikasi'
+    }
+  }
+
+  // Re-validasi IP hasil resolve (gunakan validateTargetUrl dengan IP literal)
+  const ipCheckResult = validateTargetUrl(`http://${resolvedIp}`, false)
+  if (!ipCheckResult.isValid) {
+    return {
+      isValid: false,
+      error: `DNS Rebinding blocked: hostname resolve ke IP privat/loopback (${resolvedIp})`
     }
   }
 

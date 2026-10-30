@@ -1,5 +1,12 @@
-import { describe, it, expect } from 'vitest'
-import { validateTargetUrl } from '../server/utils/ssrf'
+import { promises as dnsPromises } from 'node:dns'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { validateTargetUrl, validateTargetUrlWithDNS } from '../server/utils/ssrf'
+
+vi.mock('node:dns', () => ({
+  promises: {
+    lookup: vi.fn()
+  }
+}))
 
 describe('validateTargetUrl — Public URLs (PASS)', () => {
   it('https://api.github.com → valid', () => {
@@ -111,5 +118,45 @@ describe('validateTargetUrl — Edge Cases', () => {
     const result = validateTargetUrl('http://100.64.0.1', false)
     expect(result.isValid).toBe(false)
     expect(result.error).toContain('100.64.0.0/10')
+  })
+})
+
+describe('validateTargetUrl — IPv4-mapped IPv6 Hex Notation (SEC-002)', () => {
+  it('http://[::ffff:7f00:1] → blocked (127.0.0.1)', () => {
+    const result = validateTargetUrl('http://[::ffff:7f00:1]', false)
+    expect(result.isValid).toBe(false)
+    expect(result.error).toContain('loopback')
+  })
+
+  it('http://[::ffff:c0a8:101] → blocked (192.168.1.1)', () => {
+    const result = validateTargetUrl('http://[::ffff:c0a8:101]', false)
+    expect(result.isValid).toBe(false)
+    expect(result.error).toContain('192.168.0.0/16')
+  })
+})
+
+describe('validateTargetUrlWithDNS — DNS Rebinding (SEC-001)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('public hostname resolving to 127.0.0.1 → blocked', async () => {
+    vi.mocked(dnsPromises.lookup).mockResolvedValue({ address: '127.0.0.1', family: 4 })
+    const result = await validateTargetUrlWithDNS('https://attacker.com', false)
+    expect(result.isValid).toBe(false)
+    expect(result.error).toContain('DNS Rebinding blocked')
+  })
+
+  it('public hostname resolving to 192.168.1.1 → blocked', async () => {
+    vi.mocked(dnsPromises.lookup).mockResolvedValue({ address: '192.168.1.1', family: 4 })
+    const result = await validateTargetUrlWithDNS('https://attacker.com', false)
+    expect(result.isValid).toBe(false)
+    expect(result.error).toContain('DNS Rebinding blocked')
+  })
+
+  it('public hostname resolving to 1.1.1.1 → allowed', async () => {
+    vi.mocked(dnsPromises.lookup).mockResolvedValue({ address: '1.1.1.1', family: 4 })
+    const result = await validateTargetUrlWithDNS('https://cloudflare.com', false)
+    expect(result.isValid).toBe(true)
   })
 })
