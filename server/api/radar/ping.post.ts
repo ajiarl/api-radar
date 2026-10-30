@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { validateTargetUrlWithDNS } from '../../utils/ssrf'
+import { fetch as undiciFetch, type RequestInit } from 'undici'
+import { createSsrfDispatcher, validateTargetUrlWithDNS } from '../../utils/ssrf'
 import { checkRateLimit } from '../../utils/rateLimit'
 
 const PingSchema = z.object({
@@ -82,44 +83,81 @@ export default defineEventHandler(async (event) => {
   let errorMessage: string | undefined
 
   try {
-    const fetchOptions: Record<string, unknown> = {
+    const fetchOptions: RequestInit = {
       method,
       headers,
-      signal: AbortSignal.timeout(5000),
-      ignoreResponseError: true
+      dispatcher: createSsrfDispatcher(allowLocal),
+      redirect: 'manual',
+      signal: AbortSignal.timeout(5000)
     }
 
     if (body !== undefined && method !== 'GET' && method !== 'HEAD') {
-      fetchOptions.body = body
+      fetchOptions.body = typeof body === 'string' ? body : JSON.stringify(body)
     }
 
-    const res = await $fetch.raw(url, fetchOptions)
+    const res = await undiciFetch(url, fetchOptions)
 
     status = res.status
-    statusText = res.statusText || 'OK'
+    statusText = res.statusText || (status >= 300 && status < 400 ? 'Redirect' : 'OK')
 
     if (res.headers && typeof res.headers.forEach === 'function') {
       res.headers.forEach((val: string, key: string) => {
-        responseHeaders[key] = val
+        responseHeaders[key.toLowerCase()] = val
       })
     }
 
-    contentType = res.headers?.get?.('content-type') || responseHeaders['content-type'] || ''
-    responseBody = truncateBody(res._data)
-  } catch (err: unknown) {
-    const errorObj = err as { name?: string, message?: string, cause?: { name?: string } }
-    const isTimeout
-      = errorObj.name === 'TimeoutError'
-        || errorObj.name === 'AbortError'
-        || errorObj.cause?.name === 'TimeoutError'
-        || errorObj.message?.toLowerCase().includes('timeout')
-        || errorObj.message?.toLowerCase().includes('aborted')
+    const locationHeader = res.headers?.get?.('location')
+    if (locationHeader && !responseHeaders['location']) {
+      responseHeaders['location'] = locationHeader
+    }
 
-    status = isTimeout ? 504 : 502
-    statusText = isTimeout ? 'Gateway Timeout' : 'Bad Gateway'
-    errorMessage = isTimeout
-      ? 'Gateway Timeout: Target tidak merespons dalam 5000ms'
-      : (errorObj.message || 'Gagal terhubung ke host target')
+    contentType = res.headers?.get?.('content-type') || responseHeaders['content-type'] || ''
+    const rawText = await res.text().catch(() => '')
+
+    if (method === 'HEAD' || res.status === 204 || rawText === '') {
+      responseBody = null
+    } else {
+      let parsedData: unknown = rawText
+      try {
+        parsedData = JSON.parse(rawText)
+      } catch {
+        parsedData = rawText
+      }
+      responseBody = truncateBody(parsedData)
+    }
+  } catch (err: unknown) {
+    const errorObj = err as {
+      name?: string
+      message?: string
+      code?: string
+      cause?: { name?: string, message?: string, code?: string }
+    }
+
+    const isSsrfBlocked
+      = errorObj.code === 'ERR_SSRF_BLOCKED'
+        || errorObj.cause?.code === 'ERR_SSRF_BLOCKED'
+        || errorObj.message?.includes('SSRF Blocked')
+        || errorObj.cause?.message?.includes('SSRF Blocked')
+
+    if (isSsrfBlocked) {
+      status = 403
+      statusText = 'Forbidden'
+      errorMessage = errorObj.cause?.message || errorObj.message || 'SSRF Protection: Target IP/Host diblokir'
+    } else {
+      const isTimeout
+        = errorObj.name === 'TimeoutError'
+          || errorObj.name === 'AbortError'
+          || errorObj.cause?.name === 'TimeoutError'
+          || errorObj.cause?.name === 'AbortError'
+          || errorObj.message?.toLowerCase().includes('timeout')
+          || errorObj.message?.toLowerCase().includes('aborted')
+
+      status = isTimeout ? 504 : 502
+      statusText = isTimeout ? 'Gateway Timeout' : 'Bad Gateway'
+      errorMessage = isTimeout
+        ? 'Gateway Timeout: Target tidak merespons dalam 5000ms'
+        : (errorObj.message || 'Gagal terhubung ke host target')
+    }
   }
 
   const latencyMs = Math.round(performance.now() - startTime)
