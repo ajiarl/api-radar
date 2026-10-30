@@ -13,6 +13,7 @@ const emit = defineEmits<{
   'update:searchQuery': [value: string]
   'ping': [target: RadarTargetItem]
   'select': [target: RadarTargetItem]
+  'delete': [target: RadarTargetItem]
 }>()
 
 function formatRelativeTime(isoString?: string): string {
@@ -25,6 +26,17 @@ function formatRelativeTime(isoString?: string): string {
   if (min < 60) return `${min} menit lalu`
   const hours = Math.floor(min / 60)
   return `${hours} jam lalu`
+}
+
+function methodBadgeClass(method: string): string {
+  const map: Record<string, string> = {
+    GET: 'bg-slate-100 text-slate-700 border-slate-200',
+    POST: 'bg-purple-50 text-purple-700 border-purple-200',
+    HEAD: 'bg-sky-50 text-sky-700 border-sky-200',
+    PUT: 'bg-amber-50 text-amber-700 border-amber-200',
+    DELETE: 'bg-rose-50 text-rose-700 border-rose-200'
+  }
+  return map[method] ?? 'bg-slate-100 text-slate-700 border-slate-200'
 }
 </script>
 
@@ -138,7 +150,7 @@ function formatRelativeTime(isoString?: string): string {
             <td class="py-4 px-6 whitespace-nowrap">
               <span
                 class="px-2 py-0.5 rounded text-xs font-mono font-bold border"
-                :class="target.method === 'POST' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-slate-100 text-slate-700 border-slate-200'"
+                :class="methodBadgeClass(target.method)"
               >
                 {{ target.method }}
               </span>
@@ -191,6 +203,17 @@ function formatRelativeTime(isoString?: string): string {
                   @click="emit('select', target)"
                 >
                   Detail
+                </button>
+                <button
+                  class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-medium transition flex items-center gap-1.5 border border-rose-200 disabled:opacity-50"
+                  :disabled="pingingIds[target.id] || isPingingAll"
+                  @click="emit('delete', target)"
+                >
+                  <UIcon
+                    name="i-lucide-trash-2"
+                    class="text-xs"
+                  />
+                  <span>Hapus</span>
                 </button>
               </div>
             </td>

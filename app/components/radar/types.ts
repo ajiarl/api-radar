@@ -37,7 +37,7 @@ export interface WebhookLogItem {
 export const newTargetSchema = z.object({
   name: z.string().min(2, 'Nama minimal 2 karakter'),
   url: z.string().url('Format URL tidak valid (harus diawali http:// atau https://)'),
-  method: z.enum(['GET', 'POST']),
+  method: z.enum(['GET', 'POST', 'HEAD', 'PUT', 'DELETE']),
   allowLocal: z.boolean()
 })
 

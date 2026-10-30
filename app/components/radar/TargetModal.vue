@@ -15,7 +15,7 @@ const emit = defineEmits<{
 const newTargetForm = ref({
   name: '',
   url: '',
-  method: 'GET' as 'GET' | 'POST',
+  method: 'GET' as 'GET' | 'POST' | 'HEAD' | 'PUT' | 'DELETE',
   allowLocal: false
 })
 
@@ -86,7 +86,7 @@ function handleSubmit() {
         >
           <USelect
             v-model="newTargetForm.method"
-            :items="['GET', 'POST']"
+            :items="['GET', 'POST', 'HEAD', 'PUT', 'DELETE']"
             class="w-full"
           />
         </UFormField>

@@ -25,30 +25,6 @@ export default defineEventHandler(async () => {
 
   const logs = rawLogs.filter((item): item is WebhookLogItem & { key: string } => item !== null)
 
-  if (logs.length === 0) {
-    const sampleLog: WebhookLogItem = {
-      channelId: 'demo-github-app',
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'authorization': '***MASKED***',
-        'x-api-key': '***MASKED***',
-        'user-agent': 'GitHub-Hookshot/12345'
-      },
-      query: { env: 'production' },
-      body: {
-        event: 'ping',
-        zen: 'Approaching design with simplicity and focus.',
-        hook_id: 104928
-      },
-      timestamp: new Date().toISOString()
-    }
-    await storage.setItem('demo-github-app:' + Date.now(), sampleLog)
-    return {
-      logs: [{ key: 'demo-github-app:sample', ...sampleLog }]
-    }
-  }
-
   // Sort newest first
   logs.sort((a, b) => {
     const tA = new Date(a.timestamp).getTime()
