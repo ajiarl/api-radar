@@ -45,7 +45,10 @@ function formatJson(data: unknown): string {
 </script>
 
 <template>
-  <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
+  <div
+    id="logs"
+    class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4"
+  >
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
       <div>
         <h3 class="font-bold text-base text-slate-900">

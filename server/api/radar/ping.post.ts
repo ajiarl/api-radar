@@ -11,7 +11,8 @@ const PingSchema = z.object({
   method: z.enum(['GET', 'POST', 'HEAD', 'PUT', 'DELETE']).default('GET'),
   allowLocal: z.boolean().default(false),
   headers: z.record(z.string(), z.string()).optional(),
-  body: z.any().optional()
+  body: z.any().optional(),
+  timeout: z.number().int().min(500).max(30000).optional()
 })
 
 const MAX_BODY_BYTES = 50 * 1024 // 50KB limit
@@ -86,7 +87,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const { id, url, method, allowLocal, headers, body } = parseResult.data
+  const { id, url, method, allowLocal, headers, body, timeout } = parseResult.data
   // SEC-007: Guard allowLocal via ALLOW_LOCAL_BYPASS env var
   if (allowLocal && process.env.ALLOW_LOCAL_BYPASS !== 'true') {
     throw createError({
@@ -127,7 +128,7 @@ export default defineEventHandler(async (event) => {
       headers,
       dispatcher: createSsrfDispatcher(allowLocal),
       redirect: 'manual',
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(timeout ?? 5000)
     }
 
     if (body !== undefined && method !== 'GET' && method !== 'HEAD') {

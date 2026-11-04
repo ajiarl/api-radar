@@ -2,13 +2,13 @@
 import { ref, watch } from 'vue'
 import { pollOptions } from '~/components/radar/types'
 import { useRadarAuth } from '~/composables/useRadarAuth'
+import { useRadarSettings } from '~/composables/useRadarSettings'
 
 defineProps<{ open: boolean }>()
 
 const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 
-const defaultTimeout = ref(5000)
-const defaultRefresh = ref(0)
+const { defaultTimeout, pollInterval: defaultRefresh, saveSettings } = useRadarSettings()
 const { radarApiKey: authKey, setApiKey } = useRadarAuth()
 const radarApiKey = ref(authKey.value)
 
@@ -16,16 +16,8 @@ watch(authKey, (val) => {
   radarApiKey.value = val
 })
 
-if (import.meta.client) {
-  defaultTimeout.value = Number(localStorage.getItem('radarDefaultTimeout') ?? 5000)
-  defaultRefresh.value = Number(localStorage.getItem('radarDefaultRefreshInterval') ?? 0)
-}
-
 function save() {
-  if (import.meta.client) {
-    localStorage.setItem('radarDefaultTimeout', String(defaultTimeout.value))
-    localStorage.setItem('radarDefaultRefreshInterval', String(defaultRefresh.value))
-  }
+  saveSettings(defaultTimeout.value, defaultRefresh.value)
   setApiKey(radarApiKey.value)
   emit('update:open', false)
 }

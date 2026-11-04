@@ -12,6 +12,7 @@ import {
   calculateTargetMetrics
 } from '~/components/radar/types'
 import { useRadarAuth } from '~/composables/useRadarAuth'
+import { useRadarSettings } from '~/composables/useRadarSettings'
 
 const toast = useToast()
 const { copy, copied } = useClipboard()
@@ -58,7 +59,7 @@ async function pingTarget(target: RadarTargetItem) {
     target.lastPing = await $fetch<LastPingResult>('/api/radar/ping', {
       method: 'POST',
       headers: authHeaders.value,
-      body: { id: target.id, url: target.url, method: target.method, allowLocal: target.allowLocal, headers: target.headers }
+      body: { id: target.id, url: target.url, method: target.method, allowLocal: target.allowLocal, headers: target.headers, timeout: defaultTimeout.value }
     })
   } catch (err: unknown) {
     target.lastPing = createErrorPingResult(target, err)
@@ -79,7 +80,7 @@ async function pingAllTargets() {
   }
 }
 
-const pollInterval = ref<number>(import.meta.client ? Number(localStorage.getItem('radarDefaultRefreshInterval') ?? 0) : 0)
+const { pollInterval, defaultTimeout } = useRadarSettings()
 const { pause, resume } = useIntervalFn(
   () => { if (pollInterval.value > 0) pingAllTargets() },
   computed(() => (pollInterval.value > 0 ? pollInterval.value : 10000)),

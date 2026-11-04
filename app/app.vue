@@ -65,7 +65,7 @@ const isSettingsOpen = ref(false)
 
           <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
             <NuxtLink
-              to="/"
+              to="/#endpoints"
               class="text-emerald-600 font-semibold"
             >
               Endpoints

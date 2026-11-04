@@ -81,7 +81,7 @@ watch(
     :title="`Ping History - ${targetName}`"
     @update:open="emit('update:open', $event)"
   >
-    <template #default>
+    <template #body>
       <div class="p-5 space-y-3 overflow-y-auto max-h-[85vh]">
         <!-- loading state -->
         <div
