@@ -42,7 +42,10 @@ function methodBadgeClass(method: string): string {
 </script>
 
 <template>
-  <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+  <div
+    id="endpoints"
+    class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+  >
     <div class="px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center gap-2">
         <h2 class="font-bold text-base text-slate-900">

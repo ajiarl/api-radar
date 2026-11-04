@@ -7,6 +7,7 @@ import {
   getMethodBadgeClass,
   webhookColumns
 } from './types'
+import WebhookDetailInspector from './WebhookDetailInspector.vue'
 
 const props = defineProps<WebhookViewerProps>()
 const emit = defineEmits<WebhookViewerEmits>()
